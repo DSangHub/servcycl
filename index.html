@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+  <title>ServCycl · community kitchen connection</title>
+  <!-- Font & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #fcf9f6;
+      color: #1e1e2a;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* header / nav */
+    .navbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 0;
+      border-bottom: 1px solid rgba(0,0,0,0.04);
+      flex-wrap: wrap;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      font-size: 1.8rem;
+      letter-spacing: -0.03em;
+      color: #1e1e2a;
+    }
+
+    .logo i {
+      color: #e67e22;
+      font-size: 2rem;
+    }
+
+    .logo span {
+      background: #e67e22;
+      color: white;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 2px 12px;
+      border-radius: 40px;
+      margin-left: 6px;
+      letter-spacing: 0.3px;
+    }
+
+    .nav-actions {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid #d0cdc8;
+      padding: 10px 22px;
+      border-radius: 60px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: #1e1e2a;
+      transition: 0.2s;
+      cursor: default;
+    }
+
+    .btn-outline i {
+      margin-right: 8px;
+      color: #e67e22;
+    }
+
+    .btn-primary {
+      background: #1e1e2a;
+      border: none;
+      padding: 10px 28px;
+      border-radius: 60px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: white;
+      transition: 0.2s;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+    }
+
+    .btn-primary i {
+      margin-right: 8px;
+    }
+
+    .btn-primary:hover {
+      background: #e67e22;
+      transform: scale(1.02);
+    }
+
+    /* hero */
+    .hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 60px 0 40px;
+    }
+
+    .badge {
+      background: #f0ebe6;
+      padding: 8px 22px;
+      border-radius: 60px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #4a3f35;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 28px;
+      letter-spacing: 0.2px;
+    }
+
+    .badge i {
+      color: #e67e22;
+    }
+
+    .hero h1 {
+      font-size: clamp(2.4rem, 8vw, 4.4rem);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1.1;
+      max-width: 880px;
+      margin-bottom: 20px;
+    }
+
+    .hero h1 .highlight {
+      background: linear-gradient(145deg, #e67e22, #d35400);
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: inline-block;
+    }
+
+    .hero p {
+      font-size: 1.25rem;
+      color: #4a3f35;
+      max-width: 640px;
+      margin-bottom: 36px;
+      font-weight: 400;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 30px;
+    }
+
+    .input-group {
+      display: flex;
+      background: white;
+      border-radius: 80px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.04);
+      border: 1px solid #e8e2db;
+      padding: 4px 4px 4px 24px;
+      align-items: center;
+      max-width: 460px;
+      width: 100%;
+    }
+
+    .input-group input {
+      border: none;
+      padding: 14px 0;
+      font-size: 1rem;
+      flex: 1;
+      background: transparent;
+      outline: none;
+      font-weight: 400;
+      min-width: 160px;
+    }
+
+    .input-group input::placeholder {
+      color: #a69b8e;
+    }
+
+    .input-group button {
+      background: #e67e22;
+      border: none;
+      padding: 12px 28px;
+      border-radius: 60px;
+      font-weight: 700;
+      color: white;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: 0.2s;
+      white-space: nowrap;
+    }
+
+    .input-group button:hover {
+      background: #d35400;
+      transform: scale(0.97);
+    }
+
+    .social-proof {
+      display: flex;
+      gap: 28px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 16px;
+      font-size: 0.95rem;
+      color: #4a3f35;
+    }
+
+    .social-proof i {
+      color: #e67e22;
+      margin-right: 6px;
+    }
+
+    /* feature cards */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 28px;
+      padding: 50px 0 30px;
+    }
+
+    .card {
+      background: white;
+      padding: 32px 24px;
+      border-radius: 32px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.02);
+      border: 1px solid #f0ebe6;
+      transition: 0.25s ease;
+      text-align: left;
+    }
+
+    .card:hover {
+      transform: translateY(-6px);
+      border-color: #e67e22;
+      box-shadow: 0 20px 30px -12px rgba(230, 126, 34, 0.12);
+    }
+
+    .card i {
+      font-size: 2.2rem;
+      color: #e67e22;
+      margin-bottom: 18px;
+      background: #fcf3eb;
+      padding: 12px;
+      border-radius: 20px;
+    }
+
+    .card h3 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .card p {
+      color: #5a4f43;
+      font-size: 0.98rem;
+      line-height: 1.5;
+    }
+
+    /* how it works */
+    .how-section {
+      background: #f3eee9;
+      border-radius: 48px;
+      padding: 48px 36px;
+      margin: 32px 0 20px;
+    }
+
+    .how-section h2 {
+      font-size: 2rem;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 30px;
+      letter-spacing: -0.02em;
+    }
+
+    .steps {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 20px 40px;
+    }
+
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: white;
+      padding: 12px 24px 12px 18px;
+      border-radius: 100px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.02);
+      border: 1px solid #e2dad2;
+    }
+
+    .step .num {
+      background: #1e1e2a;
+      color: white;
+      width: 36px;
+      height: 36px;
+      border-radius: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+
+    .step span {
+      font-weight: 500;
+      font-size: 1rem;
+    }
+
+    .step i {
+      color: #e67e22;
+      margin-left: 4px;
+    }
+
+    /* eateries & charity showcase */
+    .showcase {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 28px;
+      padding: 40px 0 20px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .showcase-item {
+      background: white;
+      border-radius: 28px;
+      padding: 20px 28px 20px 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border: 1px solid #e8e2db;
+      flex: 1 1 200px;
+      max-width: 260px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.01);
+    }
+
+    .showcase-item i {
+      font-size: 2rem;
+      color: #e67e22;
+    }
+
+    .showcase-item div {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .showcase-item strong {
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+
+    .showcase-item small {
+      color: #6b5f52;
+      font-size: 0.85rem;
+    }
+
+    .charity-pulse {
+      background: #1e1e2a;
+      color: white;
+      border-radius: 60px;
+      padding: 10px 28px 10px 24px;
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      margin-top: 12px;
+      font-weight: 500;
+    }
+
+    .charity-pulse i {
+      color: #f1c40f;
+    }
+
+    /* footer */
+    .footer {
+      border-top: 1px solid #e8e2db;
+      margin-top: 50px;
+      padding: 36px 0 28px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.9rem;
+      color: #5a4f43;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 28px;
+      flex-wrap: wrap;
+    }
+
+    .footer-links a {
+      text-decoration: none;
+      color: #2b241e;
+      font-weight: 500;
+      transition: 0.15s;
+    }
+
+    .footer-links a:hover {
+      color: #e67e22;
+    }
+
+    .footer .copy {
+      opacity: 0.6;
+    }
+
+    /* responsive */
+    @media (max-width: 700px) {
+      .navbar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      .nav-actions {
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+      }
+      .input-group {
+        flex-wrap: wrap;
+        background: transparent;
+        box-shadow: none;
+        border: none;
+        padding: 0;
+        gap: 12px;
+      }
+      .input-group input {
+        background: white;
+        padding: 16px 24px;
+        border-radius: 80px;
+        border: 1px solid #d0cdc8;
+        width: 100%;
+      }
+      .input-group button {
+        width: 100%;
+        justify-content: center;
+        padding: 16px;
+      }
+      .hero {
+        padding: 30px 0 10px;
+      }
+      .how-section {
+        padding: 32px 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- NAV -->
+  <nav class="navbar">
+    <div class="logo">
+      <i class="fas fa-utensils"></i> ServCycl
+      <span>beta</span>
+    </div>
+    <div class="nav-actions">
+      <span class="btn-outline"><i class="fas fa-store"></i> For eateries</span>
+      <span class="btn-outline"><i class="fas fa-hand-holding-heart"></i> Charities</span>
+      <button class="btn-primary" onclick="document.getElementById('emailInput').focus();"><i class="fas fa-rocket"></i> Join waitlist</button>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="badge">
+      <i class="fas fa-sparkles"></i> community-powered · now in 12 cities
+    </div>
+    <h1>
+      Turn <span class="highlight">spare hours</span> into<br> 
+      meals, money &amp; good.
+    </h1>
+    <p>
+      Help at your favorite eateries, get paid instantly, 
+      earn food credits, or donate to local charities — 
+      all in one connected community.
+    </p>
+
+    <div class="hero-actions">
+      <div class="input-group">
+        <input type="email" id="emailInput" placeholder="your@email.com" aria-label="Email address">
+        <button onclick="alert('🎉 You’re on the list! We’ll notify you at launch.')">
+          <i class="fas fa-arrow-right"></i> Get early access
+        </button>
+      </div>
+    </div>
+
+    <div class="social-proof">
+      <span><i class="fas fa-check-circle"></i> 1,200+ Cyclers ready</span>
+      <span><i class="fas fa-store"></i> 340+ eateries</span>
+      <span><i class="fas fa-heart"></i> $48k donated to local charities</span>
+    </div>
+  </section>
+
+  <!-- FEATURES (3 cards) -->
+  <div class="features">
+    <div class="card">
+      <i class="fas fa-hand-sparkles"></i>
+      <h3>Help when it counts</h3>
+      <p>Pick up shifts during rushes, cover call-outs, or help with prep. You choose when &amp; where.</p>
+    </div>
+    <div class="card">
+      <i class="fas fa-coins"></i>
+      <h3>Flexible rewards</h3>
+      <p>Cash out instantly, stack food credits at your favorite spots, or redirect to a cause you care about.</p>
+    </div>
+    <div class="card">
+      <i class="fas fa-people-arrows"></i>
+      <h3>Community first</h3>
+      <p>Eateries post specials, request help, and build real relationships with local supporters.</p>
+    </div>
+  </div>
+
+  <!-- HOW IT WORKS + EATERIES / CHARITIES -->
+  <div class="how-section">
+    <h2><i class="fas fa-route" style="color:#e67e22; margin-right:12px;"></i> How it works</h2>
+    <div class="steps">
+      <div class="step"><span class="num">1</span> <span>Eatery posts a <strong>help request</strong> <i class="fas fa-clock"></i></span></div>
+      <div class="step"><span class="num">2</span> <span>Cyclers <strong>swipe to accept</strong> <i class="fas fa-hand-peace"></i></span></div>
+      <div class="step"><span class="num">3</span> <span>Work, earn, then <strong>choose reward</strong> <i class="fas fa-gift"></i></span></div>
+      <div class="step"><span class="num">4</span> <span>Community <
