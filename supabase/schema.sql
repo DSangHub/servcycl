@@ -80,3 +80,8 @@ create policy "settlement parties read" on public.settlements for select to auth
 insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) values('charity-proofs','charity-proofs',false,5242880,array['application/pdf','image/png','image/jpeg']) on conflict(id) do nothing;
 create policy "proof upload own folder" on storage.objects for insert to authenticated with check(bucket_id='charity-proofs' and (storage.foldername(name))[1]=(select auth.uid())::text);
 create policy "proof owner read" on storage.objects for select to authenticated using(bucket_id='charity-proofs' and (storage.foldername(name))[1]=(select auth.uid())::text);
+-- Supabase may grant broad default table privileges in public; narrow them explicitly.
+revoke insert,update,delete on public.eateries,public.charities,public.workers,public.shifts,public.shift_requests,public.settlements from anon;
+revoke insert,update,delete on public.settlements from authenticated;
+revoke update,delete on public.shifts,public.shift_requests from authenticated;
+revoke delete on public.eateries,public.charities,public.workers from authenticated;
