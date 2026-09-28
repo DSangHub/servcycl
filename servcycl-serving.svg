@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 300" role="img" aria-labelledby="title desc">
+<title id="title">Serving the community</title><desc id="desc">A plate with a fork and spoon beside a charity heart emblem</desc>
+<rect x="8" y="8" width="344" height="284" rx="35" fill="#e9f0e7"/>
+<circle cx="166" cy="151" r="98" fill="#fff" stroke="#193c35" stroke-width="8"/>
+<circle cx="166" cy="151" r="76" fill="none" stroke="#e4a96b" stroke-width="5"/>
+<path d="M49 80v54m-12-54v54m24-54v54m-24 0q12 17 24 0m-12 1v83" fill="none" stroke="#193c35" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<ellipse cx="289" cy="105" rx="18" ry="27" fill="none" stroke="#193c35" stroke-width="7"/>
+<path d="M289 132v89" fill="none" stroke="#193c35" stroke-width="7" stroke-linecap="round"/>
+<circle cx="181" cy="150" r="48" fill="#b75620"/>
+<path d="M181 179c-25-17-33-30-33-42 0-13 17-19 25-7l8 9 8-9c8-12 25-6 25 7 0 12-8 25-33 42z" fill="#fff"/>
+<path d="M143 241h106" stroke="#193c35" stroke-width="5" stroke-linecap="round"/>
+<text x="196" y="260" text-anchor="middle" font-family="system-ui,sans-serif" font-size="14" font-weight="700" letter-spacing="2" fill="#193c35">GIVE BACK</text>
+</svg>
