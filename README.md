@@ -18,3 +18,15 @@ The app deliberately does not claim payments have been made. Stripe funding, Con
 - Workers can select 1–100% of earnings for a verified charity. The remainder stays payable in cash. No percentage fee is charged on donations. Donations must go directly to the charity; ServCycl does not collect, hold, or forward them. The ledger records preferences/estimates only and does not initiate a donation. The worker's earnings preference does not authorize a wage deduction by itself.
 
 These are recorded obligations, **not collected payments**. The connected Stripe session currently exposes only the live `spoylt.org` account. Use a dedicated ServCycl Stripe account and configure checkout, signed webhooks, recipient onboarding, and reconciliation before marking any fee paid or sending money. The `accept_shift_request` RPC intentionally runs with elevated database privileges, checks the signed-in eatery owner and locks both request and shift, and is the only path for accepting a shift; Supabase's security advisor warns about authenticated access to this reviewed function.
+
+## Eatery fee checkout
+
+Apply `supabase/eatery_fee_payments.sql`. Deploy `eatery-fee-checkout` and `eatery-fee-webhook` with JWT gateway verification off: checkout validates the bearer token with Auth itself; webhook validates Stripe signatures.
+
+Set Supabase Edge Function secrets `STRIPE_SECRET_KEY` (ServCycl restricted key), `SERVCYCL_STRIPE_ACCOUNT_ID`, and `STRIPE_WEBHOOK_SECRET`. Supabase supplies its URL and service role key. Do not expose these in config.js. Checkout fails closed until configured and verifies the Stripe account matches.
+
+Register webhook URL `https://sbazijqghmartmgsiwwa.supabase.co/functions/v1/eatery-fee-webhook` for `checkout.session.completed`, `checkout.session.async_payment_succeeded`, and `charge.refunded`. The restricted key needs Checkout Sessions read/write, Accounts read, PaymentIntents read, and inline product/price creation permissions. Test in an isolated Stripe sandbox before setting live credentials.
+
+Each accepted shift has one $4 fee ledger record. Existing open checkouts are reused; Stripe idempotency prevents duplicate creation. Only a signature-verified paid $4 USD session matching the stored session, owner, and request can update the fee ledger. Replayed events are idempotent; refund state is reconciled from Stripe. A success-page redirect does not mark a fee paid. Worker settlements and charitable donations are never marked funded by this flow. Stripe processing fees reduce the net retained by ServCycl.
+
+Activation still requires the correct ServCycl account, secrets, webhook registration, and a sandbox payment verification. No live charge is made by deployment.
