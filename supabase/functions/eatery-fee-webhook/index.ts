@@ -3,13 +3,13 @@ import { createClient } from 'npm:@supabase/supabase-js@2.57.0';
 import { validFeeSession } from '../_shared/fees.mjs';
 Deno.serve(async req=>{
  if(req.method!=='POST')return new Response('Method not allowed',{status:405});
- const key=Deno.env.get('STRIPE_SECRET_KEY'),secret=Deno.env.get('STRIPE_WEBHOOK_SECRET');
- if(!key||!secret||!Deno.env.get('SERVCYCL_STRIPE_ACCOUNT_ID'))return new Response('Payments not configured',{status:503});
+ const key=Deno.env.get('STRIPE_SECRET_KEY')?.trim(),secret=Deno.env.get('STRIPE_WEBHOOK_SECRET');
+ if(!key||!secret||!'acct_1Tt8NBK7onK0AaO1')return new Response('Payments not configured',{status:503});
  const stripe=new Stripe(key,{apiVersion:'2026-08-26.dahlia'});
  let event;
  try {event=await stripe.webhooks.constructEventAsync(await req.text(),req.headers.get('stripe-signature')||'',secret,undefined,Stripe.createSubtleCryptoProvider());}
  catch{return new Response('Invalid signature',{status:400});}
- if(event.account&&event.account!==Deno.env.get('SERVCYCL_STRIPE_ACCOUNT_ID'))return new Response('Wrong account',{status:400});
+ if(event.account&&event.account!=='acct_1Tt8NBK7onK0AaO1')return new Response('Wrong account',{status:400});
  const admin=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
  try {
   if(['checkout.session.completed','checkout.session.async_payment_succeeded'].includes(event.type)){
