@@ -67,9 +67,27 @@ async function loadEateryRequests(){
     const title=document.createElement('strong');title.textContent=s.title+' · '+r.status;
     const summary=document.createElement('p');summary.textContent='Scheduled payout estimate '+(estimated/100).toLocaleString('en-US',{style:'currency',currency:'USD'})+' + $4 ServCycl fee = '+((estimated+400)/100).toLocaleString('en-US',{style:'currency',currency:'USD'})+' eatery total.';
     article.append(title,summary);
+    if(['accepted','completed'].includes(r.status)){
+      const {data:fee,error:feeError}=await db.from('eatery_fee_payments').select('status').eq('request_id',r.id).maybeSingle();
+      const feeStatus=document.createElement('p');
+      feeStatus.textContent=feeError?'Fee status unavailable.':fee?.status==='paid'?'$4 ServCycl fee paid.':fee?.status==='refunded'?'ServCycl fee refunded.':fee?.status==='partially_refunded'?'ServCycl fee partially refunded.':'$4 ServCycl fee due. Worker pay is separate.';
+      article.append(feeStatus);
+      if(!feeError&&(!fee||fee.status==='due')){
+        const pay=document.createElement('button');pay.className='secondary';pay.textContent='Pay $4 ServCycl fee';
+        pay.addEventListener('click',async()=>{
+          pay.disabled=true;
+          try{
+            const {data,error}=await db.functions.invoke('eatery-fee-checkout',{body:{request_id:r.id}});
+            if(error||!data?.url)throw new Error(data?.error||'Checkout is not available yet. Please try again later.');
+            const checkout=new URL(data.url);if(checkout.protocol!=='https:'||checkout.hostname!=='checkout.stripe.com')throw new Error('Invalid checkout URL.');
+            window.location.assign(checkout.href);
+          }catch(error){errorMessage(error);pay.disabled=false;}
+        });article.append(pay);
+      }
+    }
     if(r.status==='requested'&&new Date(s.starts_at)>new Date()){
       const button=document.createElement('button');button.className='secondary';button.textContent='Accept request + $4 fee';
-      button.addEventListener('click',async()=>{button.disabled=true;const {error}=await db.rpc('accept_shift_request',{p_request_id:r.id});if(error){button.disabled=false;return errorMessage(error);}status('Request accepted. The $4 fee is included in the pending settlement. Payment is not collected yet.');await loadEateryRequests();await loadShifts();});
+      button.addEventListener('click',async()=>{button.disabled=true;const {error}=await db.rpc('accept_shift_request',{p_request_id:r.id});if(error){button.disabled=false;return errorMessage(error);}status('Request accepted. The $4 fee is included in the pending settlement. Use Pay $4 ServCycl fee to pay the service fee. Worker pay is separate.');await loadEateryRequests();await loadShifts();});
       article.append(button);
     }
     list.append(article);
