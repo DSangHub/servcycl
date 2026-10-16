@@ -101,10 +101,14 @@ async function loadEateryRequests(){
           pay.disabled=true;
           try{
             const {data,error}=await db.functions.invoke('eatery-fee-checkout',{body:{request_id:r.id}});
-            if(error||!data?.url)throw new Error(data?.error||'Checkout is not available yet. Please try again later.');
+            if(error||!data?.url){
+              let detail=data?.error;
+              if(!detail&&error?.context){try{detail=(await error.context.json()).error;}catch{}}
+              throw new Error(detail||'Unable to reach checkout. Refresh the page and try again.');
+            }
             const checkout=new URL(data.url);if(checkout.protocol!=='https:'||checkout.hostname!=='checkout.stripe.com')throw new Error('Invalid checkout URL.');
             window.location.assign(checkout.href);
-          }catch(error){errorMessage(error);pay.disabled=false;}
+          }catch(error){feeStatus.textContent=error?.message||'Unable to open checkout.';pay.disabled=false;}
         });article.append(pay);
       }
     }
