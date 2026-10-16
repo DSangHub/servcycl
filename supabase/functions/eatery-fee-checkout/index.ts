@@ -11,8 +11,8 @@ Deno.serve(async req=>{
  if(req.method==='OPTIONS')return new Response('ok',{headers:cors});
  if(req.method!=='POST')return reply({error:'Method not allowed'},405);
  try {
-  const key=Deno.env.get('STRIPE_SECRET_KEY');
-  const account=Deno.env.get('SERVCYCL_STRIPE_ACCOUNT_ID');
+  const key=Deno.env.get('STRIPE_SECRET_KEY')?.trim();
+  const account='acct_1Tt8NBK7onK0AaO1';
   if(!key||!account||!Deno.env.get('STRIPE_WEBHOOK_SECRET'))return reply({error:'ServCycl payments are not activated yet.'},503);
   const admin=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
   const token=req.headers.get('Authorization')?.replace(/^Bearer\s+/i,'');
@@ -25,7 +25,11 @@ Deno.serve(async req=>{
   if(error)throw error;
   if(!canCharge(request,user.id))return reply({error:'Only the owning eatery can pay for an accepted shift.'},403);
   const stripe=new Stripe(key,{apiVersion:'2026-08-26.dahlia'});
-  if((await stripe.accounts.retrieve()).id!==account)return reply({error:'ServCycl Stripe account mismatch.'},503);
+  const actualAccount=(await stripe.accounts.retrieve()).id;
+  if(actualAccount!==account){
+    console.error('Stripe account mismatch',JSON.stringify({actualAccount,expectedAccount:account}));
+    return reply({error:'The saved Stripe key belongs to '+actualAccount+'. County Count requires '+account+'. Replace STRIPE_SECRET_KEY with a key from County Count.'},503);
+  }
   const {error:insertError}=await admin.from('eatery_fee_payments').upsert({request_id,owner_id:user.id},{onConflict:'request_id',ignoreDuplicates:true});
   if(insertError)throw insertError;
   const {data:fee,error:feeError}=await admin.from('eatery_fee_payments').select('*').eq('request_id',request_id).single();
