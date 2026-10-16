@@ -2,9 +2,12 @@ import Stripe from 'npm:stripe@22.6.0';
 import { createClient } from 'npm:@supabase/supabase-js@2.57.0';
 import { canCharge } from '../_shared/fees.mjs';
 const origin='https://servcycl.com';
-const cors={'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info','Access-Control-Allow-Methods':'POST, OPTIONS'};
-const reply=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,'Content-Type':'application/json'}});
 Deno.serve(async req=>{
+ const requestOrigin=req.headers.get('Origin');
+ const allowedOrigins=['https://servcycl.com','https://www.servcycl.com'];
+ const cors={'Access-Control-Allow-Origin':requestOrigin&&allowedOrigins.includes(requestOrigin)?requestOrigin:origin,'Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version','Access-Control-Allow-Methods':'POST, OPTIONS','Vary':'Origin'};
+ const reply=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,'Content-Type':'application/json'}});
+ if(requestOrigin&&!allowedOrigins.includes(requestOrigin))return reply({error:'Origin not allowed'},403);
  if(req.method==='OPTIONS')return new Response('ok',{headers:cors});
  if(req.method!=='POST')return reply({error:'Method not allowed'},405);
  try {
