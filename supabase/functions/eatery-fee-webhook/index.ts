@@ -1,10 +1,11 @@
 import Stripe from 'npm:stripe@22.6.0';
 import { createClient } from 'npm:@supabase/supabase-js@2.57.0';
 import { validFeeSession } from '../_shared/fees.mjs';
+import { syncSubscription } from '../_shared/subscriptions.ts';
 Deno.serve(async req=>{
  if(req.method!=='POST')return new Response('Method not allowed',{status:405});
  const key=Deno.env.get('STRIPE_SECRET_KEY')?.trim(),secret=Deno.env.get('STRIPE_WEBHOOK_SECRET');
- if(!key||!secret||!'acct_1Tt8NBK7onK0AaO1')return new Response('Payments not configured',{status:503});
+ if(!key||!secret)return new Response('Payments not configured',{status:503});
  const stripe=new Stripe(key,{apiVersion:'2026-08-26.dahlia'});
  let event;
  try {event=await stripe.webhooks.constructEventAsync(await req.text(),req.headers.get('stripe-signature')||'',secret,undefined,Stripe.createSubtleCryptoProvider());}
@@ -14,6 +15,11 @@ Deno.serve(async req=>{
  try {
   if(['checkout.session.completed','checkout.session.async_payment_succeeded'].includes(event.type)){
    const session=event.data.object as Stripe.Checkout.Session;
+   if(session.metadata?.app==='servcycl'&&session.metadata?.purpose==='eatery_monthly_plan'&&session.mode==='subscription'){
+    const subId=typeof session.subscription==='string'?session.subscription:session.subscription?.id;
+    if(subId)await syncSubscription(stripe,admin,subId,event.created);
+    return new Response('ok');
+   }
    if(session.metadata?.app!=='servcycl'||session.metadata?.purpose!=='eatery_shift_fee'||session.payment_status!=='paid')return new Response('Ignored');
    const {data:fee,error}=await admin.from('eatery_fee_payments').select('*').eq('request_id',session.metadata.request_id).maybeSingle();
    if(error)throw error;
@@ -27,6 +33,13 @@ Deno.serve(async req=>{
    const status=charge?.refunded?'refunded':charge?.amount_refunded?'partially_refunded':'paid';
    const {error:writeError}=await admin.from('eatery_fee_payments').update({status,stripe_payment_intent_id:pi,paid_at:fee.paid_at||new Date(event.created*1000).toISOString()}).eq('request_id',fee.request_id);
    if(writeError)throw writeError;
+  } else if(event.type.startsWith('customer.subscription.')){
+   await syncSubscription(stripe,admin,(event.data.object as Stripe.Subscription).id,event.created);
+  } else if(['invoice.paid','invoice.payment_failed','invoice.payment_action_required'].includes(event.type)){
+   const invoice=event.data.object as Stripe.Invoice;
+   const sub=invoice.parent?.subscription_details?.subscription;
+   const subId=typeof sub==='string'?sub:sub?.id;
+   if(subId)await syncSubscription(stripe,admin,subId,event.created);
   } else if(event.type==='charge.refunded'){
    const charge=event.data.object as Stripe.Charge;
    const pi=typeof charge.payment_intent==='string'?charge.payment_intent:charge.payment_intent?.id;
