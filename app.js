@@ -22,7 +22,8 @@ async function refreshSession() {
   user = data.user;
   $('session').textContent = user ? 'Signed in as ' + user.email : 'Sign in to save a profile.';
   $('signout').classList.toggle('hidden', !user);
-  if (user) await loadProfiles();
+  if (user) { await loadProfiles(); await loadBilling(); }
+  else { $('billing-status').textContent='Sign in to view your plan.'; $('billing-feedback').textContent=''; $('subscribe-plan').disabled=true; $('manage-plan').classList.add('hidden'); $('plan-choice').classList.remove('hidden'); $('eatery-requests').textContent='Sign in to view requests.'; }
 }
 async function loadProfiles() {
   const [w,e,c] = await Promise.all([
@@ -69,8 +70,47 @@ $('charity-form').addEventListener('submit', async ev => { ev.preventDefault(); 
 async function loadCharities(){if(!db)return;const {data,error}=await db.from('charities').select('id,name').eq('status','approved').order('name');if(error)return errorMessage(error);$('selected-charity').replaceChildren(new Option('Choose a charity',''),...(data||[]).map(c=>new Option(c.name,c.id)));}
 async function loadShifts(){if(!db)return;const location=value('search-location');let query=db.from('shifts').select('id,title,description,starts_at,ends_at,hourly_cents,eateries(name,city,zip)').eq('status','open').gte('starts_at',new Date().toISOString()).order('starts_at').limit(50);const {data,error}=await query;if(error)return errorMessage(error);const rows=(data||[]).filter(s=>!location||s.eateries?.zip===location||s.eateries?.city?.toLowerCase().includes(location.toLowerCase()));const list=$('shifts');list.replaceChildren();if(!rows.length){list.textContent='No upcoming shifts found in this location.';return;}for(const s of rows){const item=document.createElement('article');item.className='shift';const title=document.createElement('strong');title.textContent=s.title;const meta=document.createElement('p');meta.textContent=[s.eateries?.name,s.eateries?.city,new Date(s.starts_at).toLocaleString(),(s.hourly_cents/100).toLocaleString('en-US',{style:'currency',currency:'USD'})+'/hour'].filter(Boolean).join(' · ');const detail=document.createElement('p');detail.textContent=s.description||'';const button=document.createElement('button');button.className='secondary';button.textContent='Accept shift';button.addEventListener('click',async()=>{if(!requireUser())return;const {error}=await db.from('shift_requests').insert({shift_id:s.id,worker_id:user.id});if(error)return errorMessage(error);status('Shift acceptance sent. The eatery will confirm your placement.');});item.append(title,meta,detail,button);list.append(item);}}
 $('search').addEventListener('click',loadShifts);
+async function loadBilling(){
+  if(!db||!user)return;
+  const {data:b,error}=await db.from('eatery_billing').select('eatery_id,plan,status,first_selection_at,period_start,period_end,paid_until,quota_start,cancel_at_period_end').eq('owner_id',user.id).maybeSingle();
+  const output=$('billing-status');
+  if(error){output.textContent='Plan status unavailable. Refresh billing to try again.';$('subscribe-plan').disabled=true;return;}
+  if(!b){output.textContent='Save your eatery profile to begin.';$('subscribe-plan').disabled=true;return;}
+  const active=b.status==='active'&&b.paid_until&&new Date(b.paid_until)>new Date();
+  const {count,error:usageError}=await db.from('eatery_posting_usage').select('shift_id',{count:'exact',head:true}).eq('eatery_id',b.eatery_id).gte('posted_at',b.quota_start);
+  const hasSubscription=b.status!=='not_started'&&!['canceled','incomplete_expired'].includes(b.status);
+  $('plan-choice').classList.toggle('hidden',hasSubscription);
+  $('manage-plan').classList.toggle('hidden',!hasSubscription);
+  $('subscribe-plan').disabled=!b.first_selection_at;
+  if(b.plan)$('eatery-plan').value=b.plan;
+  const usage=usageError?'Posting count unavailable.':(b.plan==='unlimited'&&active?count+' postings this billing month.':count+' of 5 postings used.');
+  if(active){output.textContent=(b.plan==='unlimited'?'Unlimited — $20/month. ':'5 postings — $10/month. ')+usage+' '+(b.cancel_at_period_end?'Access ends ':'Next billing date ')+new Date(b.period_end).toLocaleDateString()+'.';}
+  else if(hasSubscription){output.textContent='Monthly payment pending or overdue ('+b.status+'). Update payment in Manage plan before posting more shifts. '+usage;}
+  else if(b.first_selection_at){output.textContent='Your first worker selection has arrived. Monthly payment is now due. Choose a plan to continue posting. '+usage;}
+  else {output.textContent='No payment due until a worker first selects a shift. '+usage;}
+}
+async function openBilling(body){
+  if(!requireUser())return;
+  const output=$('billing-feedback');
+  const buttons=[$('subscribe-plan'),$('manage-plan'),$('refresh-billing')];
+  buttons.forEach(b=>b.disabled=true);output.textContent='Opening billing…';
+  try{
+    const {data,error}=await db.functions.invoke('eatery-fee-checkout',{body});
+    if(error||data?.error){let detail=data?.error;if(!detail&&error?.context){try{detail=(await error.context.json()).error;}catch{}}throw new Error(detail||'Unable to reach billing. Please try again.');}
+    if(body.action==='refresh'){await loadBilling();output.textContent='Billing refreshed.';return;}
+    if(!data?.url)throw new Error('Billing did not return a checkout link.');
+    const target=new URL(data.url);
+    if(target.protocol!=='https:'||!['checkout.stripe.com','billing.stripe.com'].includes(target.hostname))throw new Error('Invalid billing URL.');
+    window.location.assign(target.href);
+  }catch(error){output.textContent=error?.message||'Unable to open billing.';}
+  finally {buttons.forEach(b=>b.disabled=false);await loadBilling();}
+}
+$('subscribe-plan').addEventListener('click',()=>openBilling({plan:value('eatery-plan')}));
+$('manage-plan').addEventListener('click',()=>openBilling({action:'portal'}));
+$('refresh-billing').addEventListener('click',()=>openBilling({action:'refresh'}));
 async function loadEateryRequests(){
   if(!db||!user)return;
+  await loadBilling();
   const list=$('eatery-requests');
   const {data:e,error:eError}=await db.from('eateries').select('id').eq('owner_id',user.id).maybeSingle();
   if(eError)return errorMessage(eError);
@@ -88,37 +128,16 @@ async function loadEateryRequests(){
     const estimated=Math.round((new Date(s.ends_at)-new Date(s.starts_at))/3600000*s.hourly_cents);
     const article=document.createElement('article');article.className='shift';
     const title=document.createElement('strong');title.textContent=s.title+' · '+r.status;
-    const summary=document.createElement('p');summary.textContent='Scheduled payout estimate '+(estimated/100).toLocaleString('en-US',{style:'currency',currency:'USD'})+' + $4 ServCycl fee = '+((estimated+400)/100).toLocaleString('en-US',{style:'currency',currency:'USD'})+' eatery total.';
+    const summary=document.createElement('p');summary.textContent='Scheduled worker payout estimate '+(estimated/100).toLocaleString('en-US',{style:'currency',currency:'USD'})+'. Monthly posting plan billed separately.';
     article.append(title,summary);
-    if(['accepted','completed'].includes(r.status)){
-      const {data:fee,error:feeError}=await db.from('eatery_fee_payments').select('status').eq('request_id',r.id).maybeSingle();
-      const feeStatus=document.createElement('p');
-      feeStatus.textContent=feeError?'Fee status unavailable.':fee?.status==='paid'?'$4 ServCycl fee paid.':fee?.status==='refunded'?'ServCycl fee refunded.':fee?.status==='partially_refunded'?'ServCycl fee partially refunded.':'$4 ServCycl fee due. Worker pay is separate.';
-      article.append(feeStatus);
-      if(!feeError&&(!fee||fee.status==='due')){
-        const pay=document.createElement('button');pay.className='secondary';pay.textContent='Pay $4 ServCycl fee';
-        pay.addEventListener('click',async()=>{
-          pay.disabled=true;
-          try{
-            const {data,error}=await db.functions.invoke('eatery-fee-checkout',{body:{request_id:r.id}});
-            if(error||!data?.url){
-              let detail=data?.error;
-              if(!detail&&error?.context){try{detail=(await error.context.json()).error;}catch{}}
-              throw new Error(detail||'Unable to reach checkout. Refresh the page and try again.');
-            }
-            const checkout=new URL(data.url);if(checkout.protocol!=='https:'||checkout.hostname!=='checkout.stripe.com')throw new Error('Invalid checkout URL.');
-            window.location.assign(checkout.href);
-          }catch(error){feeStatus.textContent=error?.message||'Unable to open checkout.';pay.disabled=false;}
-        });article.append(pay);
-      }
-    }
     if(r.status==='requested'&&new Date(s.starts_at)>new Date()){
-      const button=document.createElement('button');button.className='secondary';button.textContent='Accept request + $4 fee';
-      button.addEventListener('click',async()=>{button.disabled=true;const {error}=await db.rpc('accept_shift_request',{p_request_id:r.id});if(error){button.disabled=false;return errorMessage(error);}status('Request accepted. The $4 fee is included in the pending settlement. Use Pay $4 ServCycl fee to pay the service fee. Worker pay is separate.');await loadEateryRequests();await loadShifts();});
+      const button=document.createElement('button');button.className='secondary';button.textContent='Confirm worker';
+      button.addEventListener('click',async()=>{button.disabled=true;const {error}=await db.rpc('accept_shift_request',{p_request_id:r.id});if(error){button.disabled=false;return errorMessage(error);}status('Worker confirmed. Worker pay is separate from your monthly posting plan.');await loadEateryRequests();await loadShifts();});
       article.append(button);
     }
     list.append(article);
   }
 }
 if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js'));
+if(new URLSearchParams(window.location.search).has('billing')){show('eatery');$('billing-feedback').textContent='After returning from Stripe, sign in if needed and use Refresh billing to check your subscription.';}
 if(configured){db.auth.onAuthStateChange(()=>{setTimeout(()=>refreshSession(),0);});refreshSession();loadCharities();loadShifts();}

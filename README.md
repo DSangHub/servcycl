@@ -13,20 +13,30 @@ The app deliberately does not claim payments have been made. Stripe funding, Con
 
 ## Fees
 
-- An accepted shift creates a pending settlement for scheduled hours at the posted hourly rate, plus a fixed $4 ServCycl fee charged to the eatery. Actual hours and funding must be confirmed separately.
+- Eateries choose $10/month for 5 shift postings or $20/month for unlimited postings. No new $4 per-shift charges. Worker compensation remains separate.
+- Before the first worker selection, an eatery may post up to five shifts without paying. The first worker request makes the monthly payment due, independently of eatery confirmation. Further postings require a paid subscription. Initial postings count against the first paid month; quotas reset on subsequent paid billing periods. No rollover. Canceled/deleted posts still count.
 - Charity registration costs $125, due 30 days after registration or upon receipt of the first direct donation, whichever comes first. 501(c)(3) verification remains required; approval does not require advance payment. Only an authorized backend/admin can record `first_donation_received_at` and fee payment. The deadline trigger uses the earlier date and preserves the first recorded receipt. Collection and reminders are not implemented.
 - Workers can select 1–100% of earnings for a verified charity. The remainder stays payable in cash. No percentage fee is charged on donations. Donations must go directly to the charity; ServCycl does not collect, hold, or forward them. The ledger records preferences/estimates only and does not initiate a donation. The worker's earnings preference does not authorize a wage deduction by itself.
 
-These are recorded obligations, **not collected payments**. The connected Stripe session currently exposes only the live `spoylt.org` account. Use a dedicated ServCycl Stripe account and configure checkout, signed webhooks, recipient onboarding, and reconciliation before marking any fee paid or sending money. The `accept_shift_request` RPC intentionally runs with elevated database privileges, checks the signed-in eatery owner and locks both request and shift, and is the only path for accepting a shift; Supabase's security advisor warns about authenticated access to this reviewed function.
+## Monthly eatery billing
 
-## Eatery fee checkout
+Apply the historical SQL files in order, followed by `supabase/eatery_fee_payments.sql` and `supabase/eatery_monthly_plans.sql`. Deploy `eatery-fee-checkout` and `eatery-fee-webhook`, including `_shared/billing.mjs`, `_shared/subscriptions.ts`, and `_shared/fees.mjs`. JWT gateway verification is off because checkout verifies Auth bearer tokens and the webhook verifies Stripe signatures.
 
-Apply `supabase/eatery_fee_payments.sql`. Deploy `eatery-fee-checkout` and `eatery-fee-webhook` with JWT gateway verification off: checkout validates the bearer token with Auth itself; webhook validates Stripe signatures.
+County Count (`acct_1Tt8NBK7onK0AaO1`) receives ServCycl subscriptions. Supabase Edge Function secrets are `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`; Supabase supplies its URL and service-role key. Prefer a restricted key with Accounts read, Customers read/write, Checkout Sessions read/write, Subscriptions read, Invoices read, and customer portal session creation. PaymentIntents read remains needed to reconcile historical $4 refunds. Never expose these keys in config.js.
 
-Set Supabase Edge Function secrets `STRIPE_SECRET_KEY` (ServCycl restricted key), `SERVCYCL_STRIPE_ACCOUNT_ID`, and `STRIPE_WEBHOOK_SECRET`. Supabase supplies its URL and service role key. Do not expose these in config.js. Checkout fails closed until configured and verifies the Stripe account matches.
+Live catalog:
 
-Register webhook URL `https://sbazijqghmartmgsiwwa.supabase.co/functions/v1/eatery-fee-webhook` for `checkout.session.completed`, `checkout.session.async_payment_succeeded`, and `charge.refunded`. The restricted key needs Checkout Sessions read/write, Accounts read, PaymentIntents read, and inline product/price creation permissions. Test in an isolated Stripe sandbox before setting live credentials.
+| Plan | Price | Product |
+| --- | --- | --- |
+| $10/month, 5 postings | price_1URcC0K7onK0AaO1rnffUVm1 | prod_VSXGFFVuGh30OH |
+| $20/month, unlimited | price_1URcC4K7onK0AaO1cJ346vnm | prod_VSXGC4tyPJSf11 |
 
-Each accepted shift has one $4 fee ledger record. Existing open checkouts are reused; Stripe idempotency prevents duplicate creation. Only a signature-verified paid $4 USD session matching the stored session, owner, and request can update the fee ledger. Replayed events are idempotent; refund state is reconciled from Stripe. A success-page redirect does not mark a fee paid. Worker settlements and charitable donations are never marked funded by this flow. Stripe processing fees reduce the net retained by ServCycl.
+Dedicated portal configuration: `bpc_1URcCaK7onK0AaO1GSzqjV38`. Customers can update payment methods, upgrade with proration, downgrade at period end, or cancel at period end. Cancellation retains access through the paid period. Posting quotas use the unchanged billing anchor, so plan changes do not reset usage.
 
-Activation still requires the correct ServCycl account, secrets, webhook registration, and a sandbox payment verification. No live charge is made by deployment.
+Existing webhook URL: `https://sbazijqghmartmgsiwwa.supabase.co/functions/v1/eatery-fee-webhook`. Events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `customer.subscription.paused`, `customer.subscription.resumed`, `invoice.paid`, `invoice.payment_failed`, `invoice.payment_action_required`, and `charge.refunded`.
+
+A signed event triggers retrieval of current subscription and latest invoice state; only a recognized monthly price, quantity one, matching customer/owner, active subscription, and paid invoice grant posting access. Failed/unpaid or expired subscriptions block new posts. SQL serializes quota checks, keeps an immutable posting-usage ledger, and prevents browser writes to billing. Checkout locks and Stripe idempotency reuse sessions and prevent duplicate subscriptions. Refresh billing reconciles current Stripe state after a redirect; redirects alone do not grant access.
+
+Historical $4 receipts and settlements stay intact, including refund reconciliation. Old clients requesting a $4 checkout receive an instruction to refresh. New worker settlements carry zero per-shift service fee; confirming a worker is still required for placement. Monthly subscription payments never fund worker earnings or charitable donations. No existing customer is automatically subscribed by this migration.
+
+Validation: `node --test tests/monthly-*.test.mjs`; SQL rollback verification in `tests/monthly-billing.sql`. A real subscription checkout and renewal must still be verified by a customer; deployment itself does not charge anyone.
