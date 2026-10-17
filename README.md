@@ -50,3 +50,26 @@ New accounts collect name, ZIP, email, password, and optional availability. Name
 Password visibility buttons have accessible labels and pressed states. Forgot password sends the Supabase recovery email to the address entered, redirecting to the existing allowed `https://servcycl.com/` URL. `PASSWORD_RECOVERY` opens the new-password form; matching passwords are submitted through `auth.updateUser`. Passwords remain in Supabase Auth. Verify an actual recovery email with an account you control; automated checks do not send emails.
 
 Validation: `node --test tests/account-availability.test.mjs`; run `tests/worker-availability.sql` inside a transaction and roll back.
+
+## Worker membership, immediate shift texts, portfolios
+
+Apply `supabase/worker_membership_portfolio.sql` and then `supabase/sms_dispatch_schedule.sql`. A saved worker profile creates a membership with SMS off. Workers privately save their US phone, verify it, explicitly opt in, or turn texts off. Changing the phone clears its verification and opt-in. Email, phone, consent, verification attempts and notification jobs are never visible to eateries.
+
+Deploy `member-sms`, `dispatch-shift-sms`, and `worker-sms-webhook` with `_shared/sms.mjs` and gateway JWT verification off. Member verification validates Auth bearer tokens itself, the dispatcher validates a server-only random token stored in `sms_dispatch_settings`, and the Twilio webhook validates its HMAC signature. Browser origins are restricted on the member endpoint. Verification sends/checks are rate-limited in the database.
+
+SMS activation requires these **Supabase Edge Function secrets** from the same Twilio account:
+
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+- `TWILIO_VERIFY_SERVICE_SID`
+- `TWILIO_MESSAGING_SERVICE_SID` (or `TWILIO_FROM_NUMBER` for a direct sender)
+
+Use an SMS-capable approved sender in the Messaging Service. Configure its incoming-message webhook (POST) as `https://sbazijqghmartmgsiwwa.supabase.co/functions/v1/worker-sms-webhook`, with Advanced Opt-Out enabled. The sender also uses this URL for delivery callbacks. STOP disables SMS opt-in; HELP returns account instructions. START does not automatically restore the app opt-in; the member must explicitly opt in again. Confirm actual verification, opt-in, new-post delivery, and STOP using a controlled phone before describing SMS as operational.
+
+`member-sms` GET returns only a readiness flag. The website clearly says alerts await setup when credentials are absent. Credentials existing does not certify provider delivery or sender approval. No live texts have been sent by this deployment.
+
+New open, future shifts enqueue unique jobs for verified opted-in members in the eatery's ZIP (excluding the eatery owner). A minute-based Cron dispatcher claims jobs with row locks, rechecks consent/phone/ZIP/shift availability, and submits up to ten texts per run. This usually starts within a minute once configured, with backlog/provider delays possible. Jobs expire after one hour or at shift start; no old alerts are sent after late setup. HTTP 429 responses can retry up to three attempts. Uncertain provider results are recorded as unknown and never automatically resent. Provider acceptance and delivery status are recorded separately. Server-only tables deliberately have RLS with no client policies.
+
+The owning eatery can use **Confirm worked shift** after the accepted shift's scheduled end. The owner-checked, row-locking `confirm_worked_shift` RPC changes it to completed and a private trigger appends exactly one immutable work record. Confirming work does not mark wages paid. Merely posting or accepting a shift does not add a worked portfolio entry. Eateries may set **Good** and **Will hire again** on their own completed shifts. Workers cannot grade themselves, fabricate records, or confirm their own work. Workers read their own history; eateries can read portfolios for opted-in available workers or workers associated with their shifts. The reviewed RPC intentionally uses SECURITY DEFINER because clients cannot directly change shift status.
+
+Validation: `node --test tests/*.test.mjs`; run `tests/membership-portfolio.sql` in a transaction and roll it back. Tests cover membership defaults, ZIP-based queue creation, employer-only completion, no portfolio entry on acceptance alone, grading ownership, private phone state, and phone change revocation. SMS formatting and Twilio signature validation have local tests. Actual SMS delivery still requires provider setup and a controlled live verification.
