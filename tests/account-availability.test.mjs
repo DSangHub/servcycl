@@ -6,7 +6,7 @@ const source=fs.readFileSync(new URL('../app.js',import.meta.url),'utf8').replac
 const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
 function setup(){
  const elements=new Map();
- function element(id){if(!elements.has(id)){const classes=new Set();elements.set(id,{id,value:'',type:id.includes('password')?'password':'text',checked:false,disabled:false,textContent:'',dataset:{},listeners:{},classList:{add:c=>classes.add(c),remove:c=>classes.delete(c),contains:c=>classes.has(c),toggle(c,force){const on=force??!classes.has(c);if(on)classes.add(c);else classes.delete(c);return on;}},addEventListener(name,fn){this.listeners[name]=fn},setAttribute(key,val){this[key]=val},reportValidity:()=>true,replaceChildren(){this.textContent=''},append(){},reset(){},scrollIntoView(){},focus(){}});}return elements.get(id);}
+ function element(id){if(!elements.has(id)){const classes=new Set();elements.set(id,{id,value:'',type:id.includes('password')?'password':'text',checked:false,disabled:false,textContent:'',dataset:{},listeners:{},classList:{add:c=>classes.add(c),remove:c=>classes.delete(c),contains:c=>classes.has(c),toggle(c,force){const on=force??!classes.has(c);if(on)classes.add(c);else classes.delete(c);return on;}},addEventListener(name,fn){this.listeners[name]=fn},setAttribute(key,val){this[key]=val},reportValidity:()=>true,replaceChildren(){this.textContent=''},append(){},reset(){},close(){},showModal(){},scrollIntoView(){},focus(){}});}return elements.get(id);}
  for(const [,id] of html.matchAll(/id="([^"]+)"/g))element(id);
  const toggles=['password','new-password'].map(id=>{const e=element('eye-'+id);e.dataset.passwordToggle=id;return e;});
  const calls=[];let current=null;let authCallback;
