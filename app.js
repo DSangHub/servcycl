@@ -5,6 +5,8 @@ const $ = (id) => document.getElementById(id);
 const configured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 const db = configured ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY) : null;
 let user = null;
+let pendingView = null;
+let recoveringPassword = new URLSearchParams(window.location.hash.slice(1)).get('type') === 'recovery';
 const status = (message) => { $('status').textContent = message; };
 const value = (id) => $(id).value.trim();
 const requireUser = () => { if (user) return true; show('account'); status('Sign in first.'); return false; };
@@ -13,6 +15,7 @@ function show(view) {
   document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('active', el.dataset.view === view));
   status('');
   if (view === 'eatery' && user) loadEateryRequests();
+  if (view === 'available') loadAvailableWorkers();
 }
 document.querySelectorAll('[data-view]').forEach(el => el.addEventListener('click', () => show(el.dataset.view)));
 function errorMessage(error) { status(error?.message || 'Something went wrong. Please try again.'); }
@@ -22,8 +25,10 @@ async function refreshSession() {
   user = data.user;
   $('session').textContent = user ? 'Signed in as ' + user.email : 'Sign in to save a profile.';
   $('signout').classList.toggle('hidden', !user);
+  $('availability-signin').classList.toggle('hidden',Boolean(user));
+  $('availability-session').textContent=user?'Signed in. Check Available and save when you are ready to work.':'Sign in or create an account, then save your availability.';
   if (user) { await loadProfiles(); await loadBilling(); }
-  else { $('billing-status').textContent='Sign in to view your plan.'; $('billing-feedback').textContent=''; $('subscribe-plan').disabled=true; $('manage-plan').classList.add('hidden'); $('plan-choice').classList.remove('hidden'); $('eatery-requests').textContent='Sign in to view requests.'; }
+  else { $('available-workers').textContent='Sign in to view availability.'; $('available-checkbox').checked=false; $('billing-status').textContent='Sign in to view your plan.'; $('billing-feedback').textContent=''; $('subscribe-plan').disabled=true; $('manage-plan').classList.add('hidden'); $('plan-choice').classList.remove('hidden'); $('eatery-requests').textContent='Sign in to view requests.'; }
 }
 async function loadProfiles() {
   const [w,e,c] = await Promise.all([
@@ -31,16 +36,103 @@ async function loadProfiles() {
     db.from('eateries').select('name,address,city,zip').eq('owner_id', user.id).maybeSingle(),
     db.from('charities').select('name,ein,website,status,registration_fee_status,registration_fee_due_at').eq('owner_id', user.id).maybeSingle()
   ]);
+  if(w.error)return errorMessage(w.error);
+  if(!w.data&&user.user_metadata?.name&&/^[0-9]{5}$/.test(user.user_metadata?.zip||'')){
+    const {error}=await db.rpc('save_worker_availability',{p_name:user.user_metadata.name,p_zip:user.user_metadata.zip,p_available:user.user_metadata.available===true});
+    if(error)errorMessage(error);
+    else w.data={name:user.user_metadata.name,zip:user.user_metadata.zip,city:'',earnings_choice:'cash'};
+  }
+  if(w.data){$('available-name').value=w.data.name;$('available-zip').value=w.data.zip;$('account-name').value=w.data.name;$('account-zip').value=w.data.zip;
+    const {data:a,error:aError}=await db.from('available').select('is_available').eq('worker_id',user.id).maybeSingle();
+    if(aError)$('availability-feedback').textContent=aError.message;else $('available-checkbox').checked=Boolean(a?.is_available);
+  }
   if (w.data) { $('worker-name').value=w.data.name; $('worker-city').value=w.data.city; $('worker-zip').value=w.data.zip; $('reward').value=w.data.earnings_choice; $('donation-percent').value=w.data.donation_percent || 25; $('selected-charity').value=w.data.charity_id || ''; $('search-location').value=w.data.zip; }
   if (e.data) { $('eatery-name').value=e.data.name; $('eatery-address').value=e.data.address; $('eatery-city').value=e.data.city; $('eatery-zip').value=e.data.zip; }
   if (c.data) { $('charity-name').value=c.data.name; $('charity-ein').value=c.data.ein; $('charity-site').value=c.data.website || ''; $('charity-registration-status').textContent='Verification: '+c.data.status+' · $125 registration: '+c.data.registration_fee_status+' · Due '+new Date(c.data.registration_fee_due_at).toLocaleDateString(); }
   $('charity-choice').classList.toggle('hidden', $('reward').value !== 'donation');
 }
+$('availability-signin').addEventListener('click',()=>{pendingView='available';});
+$('availability-form').addEventListener('submit',async ev=>{
+  ev.preventDefault();
+  if(!user){$('account-name').value=value('available-name');$('account-zip').value=value('available-zip');$('signup-available').checked=$('available-checkbox').checked;pendingView='available';requireUser();return;}
+  const button=$('save-availability');button.disabled=true;
+  try{
+    const {error}=await db.rpc('save_worker_availability',{p_name:value('available-name'),p_zip:value('available-zip'),p_available:$('available-checkbox').checked});
+    if(error)throw error;
+    $('availability-feedback').textContent=$('available-checkbox').checked?'You are now listed as Available.':'You are no longer listed as Available.';
+    await loadProfiles();await loadAvailableWorkers();
+  }catch(error){$('availability-feedback').textContent=error?.message||'Unable to save availability.';}
+  finally{button.disabled=false;}
+});
+$('search-available').addEventListener('click',loadAvailableWorkers);
+async function loadAvailableWorkers(){
+  const list=$('available-workers');list.replaceChildren();
+  if(!db||!user){list.textContent='Sign in to view availability.';return;}
+  const {data:e,error:eError}=await db.from('eateries').select('id').eq('owner_id',user.id).maybeSingle();
+  if(eError){list.textContent='Unable to check your eatery account. Please try again.';return;}
+  if(!e){list.textContent='Save your eatery account in Eateries to view available workers.';return;}
+  const zip=value('available-search-zip');
+  if(zip&&!/^[0-9]{5}$/.test(zip)){list.textContent='Enter a 5-digit ZIP code, or leave it blank to see all.';return;}
+  let query=db.from('available').select('name,zip,updated_at').eq('is_available',true).order('updated_at',{ascending:false}).limit(100);
+  if(zip)query=query.eq('zip',zip);
+  const {data,error}=await query;
+  if(error){list.textContent='Unable to load available workers. Please try again.';return;}
+  if(!data?.length){list.textContent='No workers have marked themselves available'+(zip?' in this ZIP code':'')+'.';return;}
+  for(const worker of data){const item=document.createElement('article');item.className='shift';const name=document.createElement('strong');name.textContent=worker.name;const detail=document.createElement('p');detail.textContent='ZIP '+worker.zip+' · Available';item.append(name,detail);list.append(item);}
+}
 $('reward').addEventListener('change', () => $('charity-choice').classList.toggle('hidden', value('reward') !== 'donation'));
-$('auth-form').addEventListener('submit', async ev => { ev.preventDefault(); if (!db) return status('Supabase is not connected yet.'); const { error } = await db.auth.signInWithPassword({ email:value('email'), password:value('password') }); if (error) return errorMessage(error); await refreshSession(); status('Signed in.'); });
-$('signup').addEventListener('click', async () => { if (!db) return status('Supabase is not connected yet.'); if (!$('auth-form').reportValidity()) return; const { data,error } = await db.auth.signUp({ email:value('email'), password:value('password'), options:{ emailRedirectTo:'https://servcycl.com/' } }); if (error) return errorMessage(error); await refreshSession(); status(data.session ? 'Account created.' : 'Check your email to confirm your account, then sign in.'); });
-$('signout').addEventListener('click', async () => { await db.auth.signOut(); user=null; await refreshSession(); status('Signed out.'); });
-$('worker-form').addEventListener('submit', async ev => { ev.preventDefault(); if (!requireUser()) return; const donating=value('reward')==='donation';const percentage=donating?Number(value('donation-percent')):0;if(donating&&(!value('selected-charity')||!Number.isInteger(percentage)||percentage<1||percentage>100))return status('Choose a verified charity and a whole percentage from 1 to 100.'); const { error }=await db.from('workers').upsert({user_id:user.id,name:value('worker-name'),city:value('worker-city'),zip:value('worker-zip'),earnings_choice:value('reward'),charity_id:donating?value('selected-charity'):null,donation_percent:percentage},{onConflict:'user_id'}); if(error) return errorMessage(error); status('Worker profile saved.'); });
+$('auth-form').addEventListener('submit', async ev => {
+  ev.preventDefault();if(!db)return status('Supabase is not connected yet.');
+  const {error}=await db.auth.signInWithPassword({email:value('email'),password:$('password').value});
+  if(error){$('auth-feedback').textContent=error.message;return;}
+  $('password').value='';$('auth-feedback').textContent='';await refreshSession();
+  if(pendingView){show(pendingView);pendingView=null;}
+  status('Signed in.');
+});
+$('signup').addEventListener('click', async () => {
+  if(!db)return status('Supabase is not connected yet.');
+  if(!$('auth-form').reportValidity())return;
+  if(!value('account-name')||!/^[0-9]{5}$/.test(value('account-zip'))){$('auth-feedback').textContent='Enter your name and a 5-digit ZIP code to create an account.';return;}
+  const button=$('signup');button.disabled=true;
+  try{
+    const {data,error}=await db.auth.signUp({email:value('email'),password:$('password').value,options:{emailRedirectTo:'https://servcycl.com/',data:{name:value('account-name'),zip:value('account-zip'),available:$('signup-available').checked}}});
+    if(error)throw error;
+    $('password').value='';await refreshSession();
+    $('auth-feedback').textContent=data.session?'Account created. Open Available to review your availability.':'Check your email to confirm your account. Your worker profile and availability will be saved when you sign in.';
+    if(data.session){show('available');$('availability-feedback').textContent='Account created. Review your availability and click Save availability to make changes.';}
+  }catch(error){$('auth-feedback').textContent=error?.message||'Unable to create an account.';}
+  finally{button.disabled=false;}
+});
+document.querySelectorAll('[data-password-toggle]').forEach(button=>button.addEventListener('click',()=>{
+  const input=$(button.dataset.passwordToggle);const visible=input.type==='password';
+  input.type=visible?'text':'password';button.setAttribute('aria-label',visible?'Hide password':'Show password');button.setAttribute('aria-pressed',String(visible));
+}));
+$('forgot-password').addEventListener('click',async()=>{
+  if(!db)return status('Supabase is not connected yet.');
+  if(!$('email').reportValidity())return;
+  const button=$('forgot-password');button.disabled=true;
+  try{
+    const {error}=await db.auth.resetPasswordForEmail(value('email'),{redirectTo:'https://servcycl.com/'});
+    if(error)throw error;
+    $('auth-feedback').textContent='If an account exists for this email, a password reset link has been sent. Check your email.';
+  }catch(error){$('auth-feedback').textContent=error?.message||'Unable to send a reset link. Please try again.';}
+  finally{button.disabled=false;}
+});
+$('reset-password-form').addEventListener('submit',async ev=>{
+  ev.preventDefault();if(!db)return;
+  if(!recoveringPassword){$('reset-feedback').textContent='Open the password reset link from your email first.';return;}
+  if($('new-password').value!==$('confirm-password').value){$('reset-feedback').textContent='Passwords do not match.';return;}
+  const button=$('update-password');button.disabled=true;
+  try{
+    const {error}=await db.auth.updateUser({password:$('new-password').value});if(error)throw error;
+    $('reset-password-form').reset();recoveringPassword=false;$('password-recovery').classList.add('hidden');
+    $('auth-form').classList.remove('hidden');$('forgot-password').classList.remove('hidden');
+    $('auth-feedback').textContent='Password updated. You are signed in.';
+  }catch(error){$('reset-feedback').textContent=error?.message||'Unable to update your password.';}
+  finally{button.disabled=false;}
+});
+$('signout').addEventListener('click', async () => { await db.auth.signOut(); user=null; recoveringPassword=false; $('password-recovery').classList.add('hidden'); $('auth-form').classList.remove('hidden'); $('forgot-password').classList.remove('hidden'); ['available-name','available-zip','account-name','account-zip','password','new-password','confirm-password'].forEach(id=>{$(id).value='';}); $('signup-available').checked=false; $('availability-feedback').textContent=''; await refreshSession(); status('Signed out.'); });
+$('worker-form').addEventListener('submit', async ev => { ev.preventDefault(); if (!requireUser()) return; const donating=value('reward')==='donation';const percentage=donating?Number(value('donation-percent')):0;if(donating&&(!value('selected-charity')||!Number.isInteger(percentage)||percentage<1||percentage>100))return status('Choose a verified charity and a whole percentage from 1 to 100.'); const { error }=await db.from('workers').upsert({user_id:user.id,name:value('worker-name'),city:value('worker-city'),zip:value('worker-zip'),earnings_choice:value('reward'),charity_id:donating?value('selected-charity'):null,donation_percent:percentage},{onConflict:'user_id'}); if(error) return errorMessage(error); await loadProfiles(); status('Worker profile saved.'); });
 $('eatery-form').addEventListener('submit', async ev => { ev.preventDefault(); if (!requireUser()) return; const { error }=await db.from('eateries').upsert({owner_id:user.id,name:value('eatery-name'),address:value('eatery-address'),city:value('eatery-city'),zip:value('eatery-zip')},{onConflict:'owner_id'}); if(error) return errorMessage(error); status('Eatery saved. You can now post your shift.'); $('shift-feedback').textContent='Eatery saved. Your shift is ready to post once the fields are complete.'; await loadEateryRequests(); });
 $('shift-form').addEventListener('submit', async ev => {
   ev.preventDefault();
@@ -140,4 +232,11 @@ async function loadEateryRequests(){
 }
 if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js'));
 if(new URLSearchParams(window.location.search).has('billing')){show('eatery');$('billing-feedback').textContent='After returning from Stripe, sign in if needed and use Refresh billing to check your subscription.';}
-if(configured){db.auth.onAuthStateChange(()=>{setTimeout(()=>refreshSession(),0);});refreshSession();loadCharities();loadShifts();}
+if(recoveringPassword){show('account');$('password-recovery').classList.remove('hidden');$('auth-form').classList.add('hidden');$('forgot-password').classList.add('hidden');}
+if(configured){
+  db.auth.onAuthStateChange(event=>{setTimeout(async()=>{
+    await refreshSession();
+    if(event==='PASSWORD_RECOVERY'){recoveringPassword=true;show('account');$('password-recovery').classList.remove('hidden');$('auth-form').classList.add('hidden');$('forgot-password').classList.add('hidden');$('auth-feedback').textContent='Choose a new password below.';}
+  },0);});
+  refreshSession();loadCharities();loadShifts();
+}

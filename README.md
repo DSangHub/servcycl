@@ -40,3 +40,13 @@ A signed event triggers retrieval of current subscription and latest invoice sta
 Historical $4 receipts and settlements stay intact, including refund reconciliation. Old clients requesting a $4 checkout receive an instruction to refresh. New worker settlements carry zero per-shift service fee; confirming a worker is still required for placement. Monthly subscription payments never fund worker earnings or charitable donations. No existing customer is automatically subscribed by this migration.
 
 Validation: `node --test tests/monthly-*.test.mjs`; SQL rollback verification in `tests/monthly-billing.sql`. A real subscription checkout and renewal must still be verified by a customer; deployment itself does not charge anyone.
+
+## Available workers and account access
+
+Apply `supabase/worker_availability.sql` after the existing migrations. The Available tab is next to Find shifts. Workers opt in or out with a checkbox; `public.available` stores their name, ZIP, availability, and server timestamp. Saved eatery accounts may read opted-in listings; workers may read/edit only their own availability. Emails, Auth records, and earnings preferences are not exposed in the directory. Source name/ZIP snapshots stay synchronized with worker profiles. The RLS-protected, security-invoker `save_worker_availability` RPC preserves existing earnings preferences. Existing workers remain unlisted until they opt in.
+
+New accounts collect name, ZIP, email, password, and optional availability. Name/ZIP/availability are profile metadata, never authorization claims. After email confirmation and authentication, the client initializes a missing worker profile and availability through the RPC. Existing accounts sign in with email/password without re-entering profile details.
+
+Password visibility buttons have accessible labels and pressed states. Forgot password sends the Supabase recovery email to the address entered, redirecting to the existing allowed `https://servcycl.com/` URL. `PASSWORD_RECOVERY` opens the new-password form; matching passwords are submitted through `auth.updateUser`. Passwords remain in Supabase Auth. Verify an actual recovery email with an account you control; automated checks do not send emails.
+
+Validation: `node --test tests/account-availability.test.mjs`; run `tests/worker-availability.sql` inside a transaction and roll back.
