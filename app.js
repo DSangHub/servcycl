@@ -1,3 +1,4 @@
+import { initCredits } from './credits.js';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './config.js';
 
@@ -5,6 +6,7 @@ const $ = (id) => document.getElementById(id);
 const configured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 const db = configured ? createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY) : null;
 let user = null;
+const foodCredits=initCredits({db,getUser:()=>user,showAccount:()=>show('account')});
 let pendingView = null;
 let smsReady=false;
 let recoveringPassword = new URLSearchParams(window.location.hash.slice(1)).get('type') === 'recovery';
@@ -26,6 +28,7 @@ async function refreshSession() {
   user = data.user;
   $('session').textContent = user ? 'Signed in as ' + user.email : 'Sign in to save a profile.';
   $('signout').classList.toggle('hidden', !user);
+  await foodCredits.refresh();
   $('availability-signin').classList.toggle('hidden',Boolean(user));
   $('availability-session').textContent=user?'Signed in. Check Available and save when you are ready to work.':'Sign in or create an account, then save your availability.';
   if (user) { await loadProfiles(); await loadBilling(); await loadMembership(); await loadPortfolio(user.id,$('my-portfolio')); }
