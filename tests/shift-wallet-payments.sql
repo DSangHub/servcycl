@@ -10,7 +10,7 @@ begin
  insert into public.shift_requests(shift_id,worker_id,status) values(s,w,'completed') returning id into r;
  insert into public.settlements(request_id,amount_cents,destination,platform_shift_fee_cents,donation_percent,
  donation_amount_cents,cash_remainder_cents,donation_fee_cents,eatery_total_cents,charity_net_cents)
- values(r,2500,'cash',0,0,0,2500,0,2500,null);
+ values(r,2500,'cash',0,0,0,0,0,2500,null);
  perform set_config('wallet_test.worker',w::text,true);
  perform set_config('wallet_test.owner',o::text,true);
  perform set_config('wallet_test.other',x::text,true);
