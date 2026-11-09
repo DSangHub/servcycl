@@ -91,3 +91,17 @@ Apply `supabase/food_credits.sql` after the existing migrations. Open **Food cre
 **Permissions:** public credit tables are read-only to clients and protected by RLS. Wallets, codes and history are private; offers, agreements and reimbursement records are limited to the relevant parties. The public RPC is SECURITY INVOKER and calls a private, fixed-search-path SECURITY DEFINER implementation that validates `auth.uid()` and ownership on every operation. Existing private functions retain their revoked client execute privileges. No server key is embedded in browser code.
 
 Validation: `node --test tests/*.test.mjs`; run `tests/food-credits.sql` inside a transaction and roll it back. The SQL suite covers worker offer consent, private wallets, duplicate issuance/replay, gifting with inherited terms, reservations, wrong merchants, reused QR codes, Co-Op acceptance/caps, two-sided reimbursement confirmation, reversals, ledger conservation, and unchanged wage-payment status. These tests create only rollback fixtures, not real member balances or merchant debt. A controlled merchant/member browser redemption and device-camera check should be performed before operational use.
+
+### Venmo and Cash App shift payment records
+
+Apply `supabase/shift_wallet_payments.sql` to add the authenticated `shift_wallet_action` RPC. It is limited to pending cash settlements for completed shifts, and only the worker and owning eatery can access a shift's record. The worker chooses a provider and shares a handle for that shift only; the handle is not listed on the public worker profile.
+
+| Action | Caller | Additional fields |
+| --- | --- | --- |
+| `get` | Worker or owning eatery | None |
+| `share` | Worker | `p_provider` (`venmo` or `cash_app`), `p_handle` (`@username` or `$Cashtag`) |
+| `unshare` | Worker | None; available before a payment is reported |
+| `report` | Owning eatery | `p_provider`, `p_handle`, actual `p_amount_cents`, provider transaction ID as `p_reference` |
+| `confirm` | Worker | `p_amount_cents`, `p_reference` matching the report |
+
+Every call includes `p_action` and `p_request_id`. Before recording a payment, the eatery checks the recipient and sends it separately using its authorized payment process. This RPC records a report and the worker's acknowledgment; it does not verify the transaction with either provider, send funds, or change settlement status. This backend change does not add website controls. Run `tests/shift-wallet-payments.sql` for rollback-only fixture checks.
