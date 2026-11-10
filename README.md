@@ -105,3 +105,9 @@ Apply `supabase/shift_wallet_payments.sql` to add the authenticated `shift_walle
 | `confirm` | Worker | `p_amount_cents`, `p_reference` matching the report |
 
 Every call includes `p_action` and `p_request_id`. Before recording a payment, the eatery checks the recipient and sends it separately using its authorized payment process. This RPC records a report and the worker's acknowledgment; it does not verify the transaction with either provider, send funds, or change settlement status. This backend change does not add website controls. Run `tests/shift-wallet-payments.sql` for rollback-only fixture checks.
+
+### Direct donation checkout
+
+Apply `supabase/completed_shift_donations.sql`. During charity review, an administrator verifies the organization's 501(c)(3) proof and required fundraising authorization, checks that the charity controls or has authorized the checkout, and sets its exact HTTPS checkout address in `public.charities.donation_url`. Leave it empty when the checkout has not been verified. The ordinary website field does not enable Donate.
+
+In **Available → My worked-shift portfolio**, the worker sees a Donate link for a confirmed shift whose recorded settlement selected that approved charity. The amount shown is a suggestion from the shift's recorded donation preference; the worker enters the amount and confirms payment on the charity's site after being paid. Opening checkout does not change wage, donation receipt, or registration fee status.

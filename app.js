@@ -129,10 +129,31 @@ $('check-phone-code').addEventListener('click',()=>verifyMemberPhone('check'));
 $('close-portfolio').addEventListener('click',()=>$('portfolio-dialog').close());
 async function loadPortfolio(workerId,list){
  list.replaceChildren();if(!db||!user){list.textContent='Sign in to view your portfolio.';return;}
- const {data,error}=await db.from('worker_portfolio').select('role,eatery_name,starts_at,ends_at,completed_at,good,will_hire_again,reviewed_at').eq('worker_id',workerId).order('completed_at',{ascending:false}).limit(100);
+ const {data,error}=await db.from('worker_portfolio').select('request_id,role,eatery_name,starts_at,ends_at,completed_at,good,will_hire_again,reviewed_at').eq('worker_id',workerId).order('completed_at',{ascending:false}).limit(100);
+ if(list.id==='my-portfolio'&&user?.id!==workerId)return;
  if(error){list.textContent='Unable to load this portfolio.';return;}
  if(!data?.length){list.textContent='No confirmed worked shifts yet.';return;}
- for(const entry of data){const item=document.createElement('article');item.className='shift';const title=document.createElement('strong');title.textContent=entry.role+' · '+entry.eatery_name;const date=document.createElement('p');date.textContent='Worked '+new Date(entry.starts_at).toLocaleDateString();const grade=document.createElement('p');grade.textContent=[entry.good?'Good':null,entry.will_hire_again?'Will hire again':null].filter(Boolean).join(' · ')||(entry.reviewed_at?'No positive rating selected.':'Eatery rating pending.');item.append(title,date,grade);list.append(item);}
+ const ownPortfolio=list.id==='my-portfolio'&&user?.id===workerId;
+ const suggestions=new Map();
+ if(ownPortfolio){
+   const {data:donations,error:donationError}=await db.rpc('completed_shift_donations',{p_request_ids:data.map(entry=>entry.request_id)});
+   if(user?.id!==workerId)return;
+   if(donationError){const notice=document.createElement('p');notice.textContent='Donation options could not be loaded. Try reopening your portfolio.';list.append(notice);}
+   for(const donation of donations||[])suggestions.set(donation.request_id,donation);
+ }
+ for(const entry of data){const item=document.createElement('article');item.className='shift';const title=document.createElement('strong');title.textContent=entry.role+' · '+entry.eatery_name;const date=document.createElement('p');date.textContent='Worked '+new Date(entry.starts_at).toLocaleDateString();const grade=document.createElement('p');grade.textContent=[entry.good?'Good':null,entry.will_hire_again?'Will hire again':null].filter(Boolean).join(' · ')||(entry.reviewed_at?'No positive rating selected.':'Eatery rating pending.');item.append(title,date,grade);const donation=suggestions.get(entry.request_id);if(donation)appendDonation(item,donation);list.append(item);}
+}
+function appendDonation(item,donation){
+ const note=document.createElement('p');note.className='small';
+ let url;
+ try{const candidate=new URL(donation.donation_url);if(candidate.protocol==='https:'&&!candidate.username&&!candidate.password)url=candidate;}catch{}
+ if(!url||!donation.charity_name){note.textContent='Direct donation checkout is not available for this shift yet.';item.append(note);return;}
+ const amount=(donation.suggested_cents/100).toLocaleString('en-US',{style:'currency',currency:'USD'});
+ note.textContent='Once you’ve been paid, enter '+amount+' or your preferred amount on the charity’s page. The charity receives your donation directly.';
+ const link=document.createElement('a');link.className='primary donation-link';link.href=url.href;
+ link.target='_blank';link.rel='noopener noreferrer';
+ link.textContent='Donate to '+donation.charity_name;
+ item.append(note,link);
 }
 async function openWorkerPortfolio(workerId){$('portfolio-dialog').showModal();await loadPortfolio(workerId,$('worker-portfolio-content'));}
 $('reward').addEventListener('change', () => $('charity-choice').classList.toggle('hidden', value('reward') !== 'donation'));
