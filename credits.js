@@ -1,10 +1,11 @@
+const textForLocale = (value) => globalThis.servcyclText?.(value) ?? value;
 import {creditCents,creditCode,creditMoney as money} from './credit-utils.mjs';
 export function initCredits({db,getUser,showAccount}){
  const $=id=>document.getElementById(id);
  let revision=0,ownEatery=null,camera=null,timer=null,scanBusy=false;
  const pending=new Map();
- const node=(tag,text,className)=>{const el=document.createElement(tag);if(text!==undefined)el.textContent=text;if(className)el.className=className;return el;};
- const say=(message,target=$('credit-feedback'))=>target.textContent=message;
+ const node=(tag,text,className)=>{const el=document.createElement(tag);if(text!==undefined)el.textContent=['button','label','option'].includes(tag)?textForLocale(text):text;if(className)el.className=className;return el;};
+ const say=(message,target=$('credit-feedback'))=>target.textContent=textForLocale(message);
  const needUser=()=>{if(getUser())return true;showAccount();return false;};
  async function request(action,data={},mutation=false){
   const user=getUser();if(!user||!db)throw new Error('Sign in to use food credits.');
@@ -23,14 +24,14 @@ export function initCredits({db,getUser,showAccount}){
   return result;
  }
  const field=(labelText,type='text',required=true)=>{const wrap=node('div'),label=node('label',labelText),input=node('input');input.id='credit-field-'+crypto.randomUUID();label.htmlFor=input.id;input.type=type;input.required=required;wrap.append(label,input);return {wrap,input};};
- const check=text=>{const label=node('label',undefined,'check-label'),input=node('input');input.type='checkbox';label.append(input,document.createTextNode(text));return {label,input};};
+ const check=text=>{const label=node('label',undefined,'check-label'),input=node('input');input.type='checkbox';label.append(input,document.createTextNode(textForLocale(text)));return {label,input};};
  const button=(text,fn)=>{const el=node('button',text,'secondary');el.type='button';el.addEventListener('click',()=>run(el,fn));return el;};
  async function run(el,fn,target=$('credit-feedback')){el.disabled=true;try{await fn();}catch(error){say(error?.message||'Unable to complete this action.',target);}finally{el.disabled=false;}}
  async function change(action,data,message){await request(action,data,true);await refresh();say(message);}
  function codeCard(code){
   const card=node('article',undefined,'shift');card.append(node('strong',money(code.amount_cents)+' at '+code.eatery_name),node('p','Reserved until '+new Date(code.expires_at).toLocaleTimeString()+'. Show this QR to the selected eatery.'));
   if(typeof window.qrcode==='function'){const qr=window.qrcode(0,'M');qr.addData('https://servcycl.com/#food-credit='+creditCode(code.id));qr.make();const image=node('div',undefined,'credit-qr');image.innerHTML=qr.createSvgTag({cellSize:4,margin:4,scalable:true});image.setAttribute('role','img');image.setAttribute('aria-label','Food-credit redemption QR code');card.append(image);}
-  const input=node('input');input.readOnly=true;input.value=code.id;input.setAttribute('aria-label','Redemption code');card.append(input,button('Copy code',async()=>{await navigator.clipboard.writeText(code.id);say('Code copied.');}),button('Cancel code',()=>change('cancel_code',{code:code.id},'Code cancelled. Reserved credits are available again.')));return card;
+  const input=node('input');input.readOnly=true;input.value=code.id;input.setAttribute('aria-label',textForLocale('Redemption code'));card.append(input,button('Copy code',async()=>{await navigator.clipboard.writeText(code.id);say('Code copied.');}),button('Cancel code',()=>change('cancel_code',{code:code.id},'Code cancelled. Reserved credits are available again.')));return card;
  }
  async function drawWallet(data,version){
   $('credit-member-code').value=data.member_code;
@@ -38,13 +39,13 @@ export function initCredits({db,getUser,showAccount}){
   [lots,offers,codes,history].forEach(el=>el.replaceChildren());
   const usable=data.lots.filter(l=>!l.expires_at||new Date(l.expires_at)>new Date());
   $('credit-balance').textContent=money(usable.reduce((total,l)=>total+l.available_cents,0))+' available · '+money(usable.reduce((total,l)=>total+l.remaining_cents-l.available_cents,0))+' reserved';
-  if(!data.offers.length)offers.textContent='No food-credit offers waiting for you.';
+  if(!data.offers.length)offers.textContent=textForLocale('No food-credit offers waiting for you.');
   for(const offer of data.offers){
    const card=node('article',undefined,'shift');card.append(node('strong',money(offer.amount_cents)+' from '+offer.eatery_name),node('p',offer.terms),node('p','No expiration. '+(offer.transferable?'Gifting allowed. ':'Gifting unavailable. ')+(offer.coop_allowed?'Eligible for agreed Co-Op locations.':'Use at the issuing eatery.')));
    const consent=check('I agree to this food-credit offer and its rules. This does not mark cash wages as paid.');
    card.append(consent.label,button('Accept credits',async()=>{if(!consent.input.checked)throw new Error('Review and check the offer agreement first.');await change('accept_offer',{offer_id:offer.id,agree:true},'Credits added to your wallet.');}),button('Decline offer',()=>change('decline_offer',{offer_id:offer.id},'Offer declined.')));offers.append(card);
   }
-  if(!usable.some(l=>l.remaining_cents>0))lots.textContent='No food credits yet. After a worked food-credit shift, the eatery can send an offer for you to review.';
+  if(!usable.some(l=>l.remaining_cents>0))lots.textContent=textForLocale('No food credits yet. After a worked food-credit shift, the eatery can send an offer for you to review.');
   for(const lot of usable.filter(l=>l.remaining_cents>0)){
    const card=node('article',undefined,'shift');card.append(node('strong',lot.issuer_name+' · '+money(lot.available_cents)+' available'),node('p',money(lot.remaining_cents)+' remaining. No expiration.'),node('p',lot.terms));
    const targets=await request('targets',{lot_id:lot.id});if(version!==revision)return;
@@ -57,8 +58,8 @@ export function initCredits({db,getUser,showAccount}){
    }else card.append(node('p','The issuing eatery has not enabled gifting for these credits.'));
    lots.append(card);
   }
-  if(!data.codes.length)codes.textContent='No active redemption codes.';for(const code of data.codes)codes.append(codeCard(code));
-  if(!data.ledger.length)history.textContent='Your credit history will appear here.';
+  if(!data.codes.length)codes.textContent=textForLocale('No active redemption codes.');for(const code of data.codes)codes.append(codeCard(code));
+  if(!data.ledger.length)history.textContent=textForLocale('Your credit history will appear here.');
   const names={issued:'Credits accepted',gift_sent:'Gift sent',gift_received:'Gift received',redeemed:'Redeemed',redemption_voided:'Redemption reversed'};
   for(const entry of data.ledger){const row=node('article',undefined,'shift');row.append(node('strong',(names[entry.kind]||entry.kind)+' · '+money(entry.delta_cents)),node('p',entry.issuer_name+' · '+new Date(entry.created_at).toLocaleString()+' · Balance after: '+money(entry.balance_after_cents)));history.append(row);}
  }
@@ -66,30 +67,30 @@ export function initCredits({db,getUser,showAccount}){
   ownEatery=data.eatery_id;$('credit-eatery-panel').classList.toggle('hidden',!ownEatery);if(!ownEatery)return;
   $('credit-transfers').checked=data.rules.transfers_enabled;$('credit-coop').checked=data.rules.coop_enabled;$('credit-terms').value=data.rules.terms;
   const shifts=$('credit-eligible-shifts');shifts.replaceChildren();
-  if(!data.eligible_shifts.length)shifts.textContent='No completed food-credit shifts are awaiting an offer.';
+  if(!data.eligible_shifts.length)shifts.textContent=textForLocale('No completed food-credit shifts are awaiting an offer.');
   for(const shift of data.eligible_shifts){const card=node('article',undefined,'shift'),form=node('form'),amount=field('Agreed food-credit amount','number');amount.input.min='0.01';amount.input.step='0.01';amount.input.max=(shift.amount_cents/100).toFixed(2);const submit=node('button','Send credit offer','secondary');card.append(node('strong',shift.title+' · '+shift.worker_name),node('p','Recorded shift estimate: '+money(shift.amount_cents)+'. Send only the agreed food-credit amount. The worker must accept it.'));form.append(amount.wrap,submit);form.addEventListener('submit',ev=>{ev.preventDefault();run(submit,()=>change('offer',{request_id:shift.request_id,amount_cents:creditCents(amount.input.value)},'Credit offer sent for the worker’s review.'));});card.append(form);shifts.append(card);}
   const offers=$('credit-eatery-offers');offers.replaceChildren();
   for(const offer of data.offers){const row=node('article',undefined,'shift');row.append(node('strong',offer.worker_name+' · '+money(offer.amount_cents)+' · '+offer.status));if(offer.status==='pending')row.append(button('Withdraw offer',()=>change('withdraw_offer',{offer_id:offer.id},'Pending offer withdrawn.')));offers.append(row);}
   const partners=$('credit-partner');partners.replaceChildren(new Option('Choose a participating eatery',''));for(const partner of data.partners)partners.append(new Option(partner.name,partner.id));
-  const agreements=$('credit-agreements');agreements.replaceChildren();if(!data.agreements.length)agreements.textContent='No Co-Op agreements yet. Each direction requires its own accepted agreement.';
+  const agreements=$('credit-agreements');agreements.replaceChildren();if(!data.agreements.length)agreements.textContent=textForLocale('No Co-Op agreements yet. Each direction requires its own accepted agreement.');
   for(const agreement of data.agreements){
    const row=node('article',undefined,'shift');row.append(node('strong',agreement.issuer_name+' → '+agreement.redeemer_name+' · '+agreement.status),node('p','Issuer reimburses the accepting eatery at 100% of redeemed credit value. Outstanding limit: '+money(agreement.max_outstanding_cents)+'. Currently owed: '+money(agreement.outstanding_cents)+'.'));
    if(agreement.status==='proposed'&&agreement.redeemer_eatery_id===ownEatery){const consent=check('I agree to accept these credits and the face-value reimbursement terms.');row.append(consent.label,button('Accept Co-Op agreement',async()=>{if(!consent.input.checked)throw new Error('Agree to the reimbursement terms first.');await change('accept_coop',{agreement_id:agreement.id,agree:true},'Co-Op agreement active.');}));}
    if(agreement.status!=='closed')row.append(button(agreement.status==='proposed'?'Close proposal':'Stop future Co-Op redemptions',()=>change('close_coop',{agreement_id:agreement.id},'Agreement closed. Existing reimbursement obligations remain.')));agreements.append(row);
   }
-  const reimbursements=$('credit-reimbursements');reimbursements.replaceChildren();if(!data.reimbursements.length)reimbursements.textContent='No reimbursements recorded.';
+  const reimbursements=$('credit-reimbursements');reimbursements.replaceChildren();if(!data.reimbursements.length)reimbursements.textContent=textForLocale('No reimbursements recorded.');
   for(const entry of data.reimbursements){const row=node('article',undefined,'shift');row.append(node('strong',money(entry.amount_cents)+' · '+entry.issuer_name+' owes '+entry.redeemer_name),node('p','Status: '+entry.status+(entry.payment_reference?' · External reference: '+entry.payment_reference:'')));
    if(entry.status==='outstanding'&&entry.issuer_eatery_id===ownEatery){const form=node('form'),reference=field('Reference for payment made outside ServCycl');reference.input.maxLength=200;const submit=node('button','Report external payment','secondary');form.append(reference.wrap,submit);form.addEventListener('submit',ev=>{ev.preventDefault();run(submit,()=>change('report_payment',{redemption_id:entry.redemption_id,reference:reference.input.value.trim()},'Payment reported. The receiving eatery must confirm receipt.'));});row.append(form);}
    if(entry.status==='payment_reported'&&entry.redeemer_eatery_id===ownEatery)row.append(button('Confirm payment received',()=>change('confirm_payment',{redemption_id:entry.redemption_id},'Receipt confirmed. Reimbursement marked settled.')));reimbursements.append(row);
   }
-  const redemptions=$('credit-redemption-history');redemptions.replaceChildren();if(!data.redemptions.length)redemptions.textContent='No completed redemptions.';
+  const redemptions=$('credit-redemption-history');redemptions.replaceChildren();if(!data.redemptions.length)redemptions.textContent=textForLocale('No completed redemptions.');
   for(const entry of data.redemptions){const row=node('article',undefined,'shift');row.append(node('strong',money(entry.amount_cents)+' from '+entry.issuer_name+' · '+entry.status),node('p',new Date(entry.redeemed_at).toLocaleString()));if(entry.status==='redeemed')row.append(button('Void mistaken redemption',()=>change('void_redemption',{code:entry.id},'Redemption reversed and credits restored.')));redemptions.append(row);}
  }
  async function refresh(){
   const version=++revision,user=getUser();stopCamera();$('credit-preview').replaceChildren();
-  if(!user||!db){$('credit-wallet-content').classList.add('hidden');$('credit-eatery-panel').classList.add('hidden');$('credit-session').textContent='Sign in or create an account to use your food-credit wallet.';$('credit-signin').classList.remove('hidden');$('credit-member-code').value='';['credit-lots','credit-offers','credit-codes','credit-history','credit-eatery-offers','credit-reimbursements'].forEach(id=>$(id).replaceChildren());say('');return;}
-  $('credit-session').textContent='Loading food credits…';$('credit-signin').classList.add('hidden');
-  try{const [wallet,eatery]=await Promise.all([request('wallet'),request('eatery')]);if(version!==revision||getUser()?.id!==user.id)return;$('credit-wallet-content').classList.remove('hidden');$('credit-session').textContent='Credits remain tied to the issuing eatery’s rules.';drawEatery(eatery);await drawWallet(wallet,version);}catch(error){if(version===revision)say(error?.message||'Unable to load food credits.');}
+  if(!user||!db){$('credit-wallet-content').classList.add('hidden');$('credit-eatery-panel').classList.add('hidden');$('credit-session').textContent=textForLocale('Sign in or create an account to use your food-credit wallet.');$('credit-signin').classList.remove('hidden');$('credit-member-code').value='';['credit-lots','credit-offers','credit-codes','credit-history','credit-eatery-offers','credit-reimbursements'].forEach(id=>$(id).replaceChildren());say('');return;}
+  $('credit-session').textContent=textForLocale('Loading food credits…');$('credit-signin').classList.add('hidden');
+  try{const [wallet,eatery]=await Promise.all([request('wallet'),request('eatery')]);if(version!==revision||getUser()?.id!==user.id)return;$('credit-wallet-content').classList.remove('hidden');$('credit-session').textContent=textForLocale('Credits remain tied to the issuing eatery’s rules.');drawEatery(eatery);await drawWallet(wallet,version);}catch(error){if(version===revision)say(error?.message||'Unable to load food credits.');}
  }
  $('credit-nav').addEventListener('click',refresh);
  $('credit-signin').addEventListener('click',showAccount);
