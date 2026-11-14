@@ -1,3 +1,4 @@
+const text = (value) => globalThis.servcyclText?.(value) ?? value;
 import { initCredits } from './credits.js';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './config.js';
@@ -12,7 +13,7 @@ let smsReady=false;
 let recoveringPassword = new URLSearchParams(window.location.hash.slice(1)).get('type') === 'recovery';
 const status = (message) => { $('status').textContent = message; };
 const value = (id) => $(id).value.trim();
-const requireUser = () => { if (user) return true; show('account'); status('Sign in first.'); return false; };
+const requireUser = () => { if (user) return true; show('account'); status(text('Sign in first.')); return false; };
 function show(view) {
   document.querySelectorAll('.view').forEach(el => el.classList.toggle('hidden', el.id !== view));
   document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('active', el.dataset.view === view));
@@ -32,7 +33,7 @@ async function refreshSession() {
   $('availability-signin').classList.toggle('hidden',Boolean(user));
   $('availability-session').textContent=user?'Signed in. Check Available and save when you are ready to work.':'Sign in or create an account, then save your availability.';
   if (user) { await loadProfiles(); await loadBilling(); await loadMembership(); await loadPortfolio(user.id,$('my-portfolio')); }
-  else { $('membership-status').textContent='Sign in to view your membership.';$('my-portfolio').textContent='Sign in to view your portfolio.';$('member-phone').value='';$('phone-code').value='';$('member-sms-optin').checked=false;$('portfolio-dialog').close(); $('available-workers').textContent='Sign in to view availability.'; $('available-checkbox').checked=false; $('billing-status').textContent='Sign in to view your plan.'; $('billing-feedback').textContent=''; $('subscribe-plan').disabled=true; $('manage-plan').classList.add('hidden'); $('plan-choice').classList.remove('hidden'); $('eatery-requests').textContent='Sign in to view requests.'; }
+  else { $('membership-status').textContent=text('Sign in to view your membership.');$('my-portfolio').textContent=text('Sign in to view your portfolio.');$('member-phone').value='';$('phone-code').value='';$('member-sms-optin').checked=false;$('portfolio-dialog').close(); $('available-workers').textContent=text('Sign in to view availability.'); $('available-checkbox').checked=false; $('billing-status').textContent=text('Sign in to view your plan.'); $('billing-feedback').textContent=''; $('subscribe-plan').disabled=true; $('manage-plan').classList.add('hidden'); $('plan-choice').classList.remove('hidden'); $('eatery-requests').textContent=text('Sign in to view requests.'); }
 }
 async function loadProfiles() {
   const [w,e,c] = await Promise.all([
@@ -71,24 +72,24 @@ $('availability-form').addEventListener('submit',async ev=>{
 $('search-available').addEventListener('click',loadAvailableWorkers);
 async function loadAvailableWorkers(){
   const list=$('available-workers');list.replaceChildren();
-  if(!db||!user){list.textContent='Sign in to view availability.';return;}
+  if(!db||!user){list.textContent=text('Sign in to view availability.');return;}
   const {data:e,error:eError}=await db.from('eateries').select('id').eq('owner_id',user.id).maybeSingle();
   if(eError){list.textContent='Unable to check your eatery account. Please try again.';return;}
-  if(!e){list.textContent='Save your eatery account in Eateries to view available workers.';return;}
+  if(!e){list.textContent=text('Save your eatery account in Eateries to view available workers.');return;}
   const zip=value('available-search-zip');
-  if(zip&&!/^[0-9]{5}$/.test(zip)){list.textContent='Enter a 5-digit ZIP code, or leave it blank to see all.';return;}
+  if(zip&&!/^[0-9]{5}$/.test(zip)){list.textContent=text('Enter a 5-digit ZIP code, or leave it blank to see all.');return;}
   let query=db.from('available').select('worker_id,name,zip,updated_at').eq('is_available',true).order('updated_at',{ascending:false}).limit(100);
   if(zip)query=query.eq('zip',zip);
   const {data,error}=await query;
-  if(error){list.textContent='Unable to load available workers. Please try again.';return;}
+  if(error){list.textContent=text('Unable to load available workers. Please try again.');return;}
   if(!data?.length){list.textContent='No workers have marked themselves available'+(zip?' in this ZIP code':'')+'.';return;}
   for(const worker of data){const item=document.createElement('article');item.className='shift';const name=document.createElement('strong');name.textContent=worker.name;const detail=document.createElement('p');detail.textContent='ZIP '+worker.zip+' · Available';const portfolio=document.createElement('button');portfolio.type='button';portfolio.className='secondary';portfolio.textContent='View portfolio';portfolio.addEventListener('click',()=>openWorkerPortfolio(worker.worker_id));item.append(name,detail,portfolio);list.append(item);}
 }
 async function loadMembership(){
   if(!db||!user)return;
   const {data:m,error}=await db.from('worker_memberships').select('phone,phone_verified,sms_optin,joined_at').eq('worker_id',user.id).maybeSingle();
-  if(error){$('membership-status').textContent='Membership unavailable. Try again.';return;}
-  if(!m){$('membership-status').textContent='Save your worker profile or availability to become a member.';return;}
+  if(error){$('membership-status').textContent=text('Membership unavailable. Try again.');return;}
+  if(!m){$('membership-status').textContent=text('Save your worker profile or availability to become a member.');return;}
   $('member-phone').value=m.phone||'';$('member-sms-optin').checked=m.sms_optin;
   try{const response=await fetch(SUPABASE_URL+'/functions/v1/member-sms');smsReady=response.ok&&(await response.json()).ready;}catch{smsReady=false;}
   $('send-phone-code').disabled=!smsReady;$('check-phone-code').disabled=!smsReady;
@@ -128,17 +129,17 @@ $('send-phone-code').addEventListener('click',()=>verifyMemberPhone('send'));
 $('check-phone-code').addEventListener('click',()=>verifyMemberPhone('check'));
 $('close-portfolio').addEventListener('click',()=>$('portfolio-dialog').close());
 async function loadPortfolio(workerId,list){
- list.replaceChildren();if(!db||!user){list.textContent='Sign in to view your portfolio.';return;}
+ list.replaceChildren();if(!db||!user){list.textContent=text('Sign in to view your portfolio.');return;}
  const {data,error}=await db.from('worker_portfolio').select('request_id,role,eatery_name,starts_at,ends_at,completed_at,good,will_hire_again,reviewed_at').eq('worker_id',workerId).order('completed_at',{ascending:false}).limit(100);
  if(list.id==='my-portfolio'&&user?.id!==workerId)return;
- if(error){list.textContent='Unable to load this portfolio.';return;}
- if(!data?.length){list.textContent='No confirmed worked shifts yet.';return;}
+ if(error){list.textContent=text('Unable to load this portfolio.');return;}
+ if(!data?.length){list.textContent=text('No confirmed worked shifts yet.');return;}
  const ownPortfolio=list.id==='my-portfolio'&&user?.id===workerId;
  const suggestions=new Map();
  if(ownPortfolio){
    const {data:donations,error:donationError}=await db.rpc('completed_shift_donations',{p_request_ids:data.map(entry=>entry.request_id)});
    if(user?.id!==workerId)return;
-   if(donationError){const notice=document.createElement('p');notice.textContent='Donation options could not be loaded. Try reopening your portfolio.';list.append(notice);}
+   if(donationError){const notice=document.createElement('p');notice.textContent=text('Donation options could not be loaded. Try reopening your portfolio.');list.append(notice);}
    for(const donation of donations||[])suggestions.set(donation.request_id,donation);
  }
  for(const entry of data){const item=document.createElement('article');item.className='shift';const title=document.createElement('strong');title.textContent=entry.role+' · '+entry.eatery_name;const date=document.createElement('p');date.textContent='Worked '+new Date(entry.starts_at).toLocaleDateString();const grade=document.createElement('p');grade.textContent=[entry.good?'Good':null,entry.will_hire_again?'Will hire again':null].filter(Boolean).join(' · ')||(entry.reviewed_at?'No positive rating selected.':'Eatery rating pending.');item.append(title,date,grade);const donation=suggestions.get(entry.request_id);if(donation)appendDonation(item,donation);list.append(item);}
@@ -147,12 +148,12 @@ function appendDonation(item,donation){
  const note=document.createElement('p');note.className='small';
  let url;
  try{const candidate=new URL(donation.donation_url);if(candidate.protocol==='https:'&&!candidate.username&&!candidate.password)url=candidate;}catch{}
- if(!url||!donation.charity_name){note.textContent='Direct donation checkout is not available for this shift yet.';item.append(note);return;}
+ if(!url||!donation.charity_name){note.textContent=text('Direct donation checkout is not available for this shift yet.');item.append(note);return;}
  const amount=(donation.suggested_cents/100).toLocaleString('en-US',{style:'currency',currency:'USD'});
- note.textContent='Once you’ve been paid, enter '+amount+' or your preferred amount on the charity’s page. The charity receives your donation directly.';
+ note.textContent=text('Once you’ve been paid, enter ')+amount+text(' or your preferred amount on the charity’s page. The charity receives your donation directly.');
  const link=document.createElement('a');link.className='primary donation-link';link.href=url.href;
  link.target='_blank';link.rel='noopener noreferrer';
- link.textContent='Donate to '+donation.charity_name;
+ link.textContent=text('Donate to ')+donation.charity_name;
  item.append(note,link);
 }
 async function openWorkerPortfolio(workerId){$('portfolio-dialog').showModal();await loadPortfolio(workerId,$('worker-portfolio-content'));}
@@ -163,12 +164,12 @@ $('auth-form').addEventListener('submit', async ev => {
   if(error){$('auth-feedback').textContent=error.message;return;}
   $('password').value='';$('auth-feedback').textContent='';await refreshSession();
   if(pendingView){show(pendingView);pendingView=null;}
-  status('Signed in.');
+  status(text('Signed in.'));
 });
 $('signup').addEventListener('click', async () => {
   if(!db)return status('Supabase is not connected yet.');
   if(!$('auth-form').reportValidity())return;
-  if(!value('account-name')||!/^[0-9]{5}$/.test(value('account-zip'))){$('auth-feedback').textContent='Enter your name and a 5-digit ZIP code to create an account.';return;}
+  if(!value('account-name')||!/^[0-9]{5}$/.test(value('account-zip'))){$('auth-feedback').textContent=text('Enter your name and a 5-digit ZIP code to create an account.');return;}
   const button=$('signup');button.disabled=true;
   try{
     const {data,error}=await db.auth.signUp({email:value('email'),password:$('password').value,options:{emailRedirectTo:'https://servcycl.com/',data:{name:value('account-name'),zip:value('account-zip'),available:$('signup-available').checked}}});
@@ -190,26 +191,26 @@ $('forgot-password').addEventListener('click',async()=>{
   try{
     const {error}=await db.auth.resetPasswordForEmail(value('email'),{redirectTo:'https://servcycl.com/'});
     if(error)throw error;
-    $('auth-feedback').textContent='If an account exists for this email, a password reset link has been sent. Check your email.';
+    $('auth-feedback').textContent=text('If an account exists for this email, a password reset link has been sent. Check your email.');
   }catch(error){$('auth-feedback').textContent=error?.message||'Unable to send a reset link. Please try again.';}
   finally{button.disabled=false;}
 });
 $('reset-password-form').addEventListener('submit',async ev=>{
   ev.preventDefault();if(!db)return;
-  if(!recoveringPassword){$('reset-feedback').textContent='Open the password reset link from your email first.';return;}
-  if($('new-password').value!==$('confirm-password').value){$('reset-feedback').textContent='Passwords do not match.';return;}
+  if(!recoveringPassword){$('reset-feedback').textContent=text('Open the password reset link from your email first.');return;}
+  if($('new-password').value!==$('confirm-password').value){$('reset-feedback').textContent=text('Passwords do not match.');return;}
   const button=$('update-password');button.disabled=true;
   try{
     const {error}=await db.auth.updateUser({password:$('new-password').value});if(error)throw error;
     $('reset-password-form').reset();recoveringPassword=false;$('password-recovery').classList.add('hidden');
     $('auth-form').classList.remove('hidden');$('forgot-password').classList.remove('hidden');
-    $('auth-feedback').textContent='Password updated. You are signed in.';
+    $('auth-feedback').textContent=text('Password updated. You are signed in.');
   }catch(error){$('reset-feedback').textContent=error?.message||'Unable to update your password.';}
   finally{button.disabled=false;}
 });
-$('signout').addEventListener('click', async () => { await db.auth.signOut(); user=null; recoveringPassword=false; $('password-recovery').classList.add('hidden'); $('auth-form').classList.remove('hidden'); $('forgot-password').classList.remove('hidden'); ['available-name','available-zip','account-name','account-zip','password','new-password','confirm-password'].forEach(id=>{$(id).value='';}); $('signup-available').checked=false; $('availability-feedback').textContent=''; await refreshSession(); status('Signed out.'); });
-$('worker-form').addEventListener('submit', async ev => { ev.preventDefault(); if (!requireUser()) return; const donating=value('reward')==='donation';const percentage=donating?Number(value('donation-percent')):0;if(donating&&(!value('selected-charity')||!Number.isInteger(percentage)||percentage<1||percentage>100))return status('Choose a verified charity and a whole percentage from 1 to 100.'); const { error }=await db.from('workers').upsert({user_id:user.id,name:value('worker-name'),city:value('worker-city'),zip:value('worker-zip'),earnings_choice:value('reward'),charity_id:donating?value('selected-charity'):null,donation_percent:percentage},{onConflict:'user_id'}); if(error) return errorMessage(error); await loadProfiles(); status('Worker profile saved.'); });
-$('eatery-form').addEventListener('submit', async ev => { ev.preventDefault(); if (!requireUser()) return; const { error }=await db.from('eateries').upsert({owner_id:user.id,name:value('eatery-name'),address:value('eatery-address'),city:value('eatery-city'),zip:value('eatery-zip')},{onConflict:'owner_id'}); if(error) return errorMessage(error); status('Eatery saved. You can now post your shift.'); $('shift-feedback').textContent='Eatery saved. Your shift is ready to post once the fields are complete.'; await loadEateryRequests(); });
+$('signout').addEventListener('click', async () => { await db.auth.signOut(); user=null; recoveringPassword=false; $('password-recovery').classList.add('hidden'); $('auth-form').classList.remove('hidden'); $('forgot-password').classList.remove('hidden'); ['available-name','available-zip','account-name','account-zip','password','new-password','confirm-password'].forEach(id=>{$(id).value='';}); $('signup-available').checked=false; $('availability-feedback').textContent=''; await refreshSession(); status(text('Signed out.')); });
+$('worker-form').addEventListener('submit', async ev => { ev.preventDefault(); if (!requireUser()) return; const donating=value('reward')==='donation';const percentage=donating?Number(value('donation-percent')):0;if(donating&&(!value('selected-charity')||!Number.isInteger(percentage)||percentage<1||percentage>100))return status(text('Choose a verified charity and a whole percentage from 1 to 100.')); const { error }=await db.from('workers').upsert({user_id:user.id,name:value('worker-name'),city:value('worker-city'),zip:value('worker-zip'),earnings_choice:value('reward'),charity_id:donating?value('selected-charity'):null,donation_percent:percentage},{onConflict:'user_id'}); if(error) return errorMessage(error); await loadProfiles(); status(text('Worker profile saved.')); });
+$('eatery-form').addEventListener('submit', async ev => { ev.preventDefault(); if (!requireUser()) return; const { error }=await db.from('eateries').upsert({owner_id:user.id,name:value('eatery-name'),address:value('eatery-address'),city:value('eatery-city'),zip:value('eatery-zip')},{onConflict:'owner_id'}); if(error) return errorMessage(error); status(text('Eatery saved. You can now post your shift.')); $('shift-feedback').textContent='Eatery saved. Your shift is ready to post once the fields are complete.'; await loadEateryRequests(); });
 $('shift-form').addEventListener('submit', async ev => {
   ev.preventDefault();
   const feedback=$('shift-feedback');
@@ -232,11 +233,11 @@ $('shift-form').addEventListener('submit', async ev => {
     $('shift-form').reset();say('Shift posted successfully. Workers can now find it.');
     await loadShifts();await loadEateryRequests();
   } catch(error){say(error?.message||'Unable to post. Check your connection and try again.');}
-  finally {button.disabled=false;button.textContent='Post shift';}
+  finally {button.disabled=false;button.textContent=text('Post shift');}
 });
-$('charity-form').addEventListener('submit', async ev => { ev.preventDefault(); if (!requireUser()) return; const file=$('charity-proof').files[0]; if(!file||!['application/pdf','image/png','image/jpeg'].includes(file.type)||file.size>5*1024*1024) return status('Use a PDF, PNG, or JPEG under 5 MB.'); const path=user.id+'/'+crypto.randomUUID()+'-'+file.name.replace(/[^a-zA-Z0-9.\-]/g,'_');const {error:uploadError}=await db.storage.from('charity-proofs').upload(path,file,{contentType:file.type});if(uploadError)return errorMessage(uploadError); const {data:existing}=await db.from('charities').select('id,status').eq('owner_id',user.id).maybeSingle();if(existing?.status==='approved')return status('Contact ServCycl to change an approved charity.');const payload={name:value('charity-name'),ein:value('charity-ein'),website:value('charity-site')||null,proof_path:path};const result=existing?await db.from('charities').update(payload).eq('id',existing.id):await db.from('charities').insert({...payload,owner_id:user.id}); if(result.error) return errorMessage(result.error); await loadProfiles(); status('Submitted for 501(c)(3) verification. Registration is $125, due within 30 days or upon your first donation, whichever comes first.'); });
-async function loadCharities(){if(!db)return;const {data,error}=await db.from('charities').select('id,name').eq('status','approved').order('name');if(error)return errorMessage(error);$('selected-charity').replaceChildren(new Option('Choose a charity',''),...(data||[]).map(c=>new Option(c.name,c.id)));}
-async function loadShifts(){if(!db)return;const location=value('search-location');let query=db.from('shifts').select('id,title,description,starts_at,ends_at,hourly_cents,eateries(name,city,zip)').eq('status','open').gte('starts_at',new Date().toISOString()).order('starts_at').limit(50);const {data,error}=await query;if(error)return errorMessage(error);const rows=(data||[]).filter(s=>!location||s.eateries?.zip===location||s.eateries?.city?.toLowerCase().includes(location.toLowerCase()));const list=$('shifts');list.replaceChildren();if(!rows.length){list.textContent='No upcoming shifts found in this location.';return;}for(const s of rows){const item=document.createElement('article');item.className='shift';const title=document.createElement('strong');title.textContent=s.title;const meta=document.createElement('p');meta.textContent=[s.eateries?.name,s.eateries?.city,new Date(s.starts_at).toLocaleString(),(s.hourly_cents/100).toLocaleString('en-US',{style:'currency',currency:'USD'})+'/hour'].filter(Boolean).join(' · ');const detail=document.createElement('p');detail.textContent=s.description||'';const button=document.createElement('button');button.className='secondary';button.textContent='Accept shift';button.addEventListener('click',async()=>{if(!requireUser())return;const {error}=await db.from('shift_requests').insert({shift_id:s.id,worker_id:user.id});if(error)return errorMessage(error);status('Shift acceptance sent. The eatery will confirm your placement.');});item.append(title,meta,detail,button);list.append(item);}}
+$('charity-form').addEventListener('submit', async ev => { ev.preventDefault(); if (!requireUser()) return; const file=$('charity-proof').files[0]; if(!file||!['application/pdf','image/png','image/jpeg'].includes(file.type)||file.size>5*1024*1024) return status(text('Use a PDF, PNG, or JPEG under 5 MB.')); const path=user.id+'/'+crypto.randomUUID()+'-'+file.name.replace(/[^a-zA-Z0-9.\-]/g,'_');const {error:uploadError}=await db.storage.from('charity-proofs').upload(path,file,{contentType:file.type});if(uploadError)return errorMessage(uploadError); const {data:existing}=await db.from('charities').select('id,status').eq('owner_id',user.id).maybeSingle();if(existing?.status==='approved')return status(text('Contact ServCycl to change an approved charity.'));const payload={name:value('charity-name'),ein:value('charity-ein'),website:value('charity-site')||null,proof_path:path};const result=existing?await db.from('charities').update(payload).eq('id',existing.id):await db.from('charities').insert({...payload,owner_id:user.id}); if(result.error) return errorMessage(result.error); await loadProfiles(); status('Submitted for 501(c)(3) verification. Registration is $125, due within 30 days or upon your first donation, whichever comes first.'); });
+async function loadCharities(){if(!db)return;const {data,error}=await db.from('charities').select('id,name').eq('status','approved').order('name');if(error)return errorMessage(error);$('selected-charity').replaceChildren(new Option(text('Choose a charity'),''),...(data||[]).map(c=>new Option(c.name,c.id)));}
+async function loadShifts(){if(!db)return;const location=value('search-location');let query=db.from('shifts').select('id,title,description,starts_at,ends_at,hourly_cents,eateries(name,city,zip)').eq('status','open').gte('starts_at',new Date().toISOString()).order('starts_at').limit(50);const {data,error}=await query;if(error)return errorMessage(error);const rows=(data||[]).filter(s=>!location||s.eateries?.zip===location||s.eateries?.city?.toLowerCase().includes(location.toLowerCase()));const list=$('shifts');list.replaceChildren();if(!rows.length){list.textContent=text('No upcoming shifts found in this location.');return;}for(const s of rows){const item=document.createElement('article');item.className='shift';const title=document.createElement('strong');title.textContent=s.title;const meta=document.createElement('p');meta.textContent=[s.eateries?.name,s.eateries?.city,new Date(s.starts_at).toLocaleString(),(s.hourly_cents/100).toLocaleString('en-US',{style:'currency',currency:'USD'})+'/hour'].filter(Boolean).join(' · ');const detail=document.createElement('p');detail.textContent=s.description||'';const button=document.createElement('button');button.className='secondary';button.textContent=text('Accept shift');button.addEventListener('click',async()=>{if(!requireUser())return;const {error}=await db.from('shift_requests').insert({shift_id:s.id,worker_id:user.id});if(error)return errorMessage(error);status('Shift acceptance sent. The eatery will confirm your placement.');});item.append(title,meta,detail,button);list.append(item);}}
 $('search').addEventListener('click',loadShifts);
 async function loadBilling(){
   if(!db||!user)return;
@@ -286,11 +287,11 @@ async function loadEateryRequests(){
   const {data:shifts,error:sError}=await db.from('shifts').select('id,title,starts_at,ends_at,hourly_cents').eq('eatery_id',e.id).in('status',['open','filled','completed']).order('starts_at',{ascending:false}).limit(50);
   if(sError)return errorMessage(sError);
   const ids=(shifts||[]).map(s=>s.id);
-  if(!ids.length){list.textContent='No shift requests yet.';return;}
+  if(!ids.length){list.textContent=text('No shift requests yet.');return;}
   const {data:requests,error:rError}=await db.from('shift_requests').select('id,shift_id,worker_id,status,created_at').in('shift_id',ids).order('created_at',{ascending:false});
   if(rError)return errorMessage(rError);
   list.replaceChildren();
-  if(!requests?.length){list.textContent='No shift requests yet.';return;}
+  if(!requests?.length){list.textContent=text('No shift requests yet.');return;}
   for(const r of requests){
     const s=shifts.find(item=>item.id===r.shift_id);
     const estimated=Math.round((new Date(s.ends_at)-new Date(s.starts_at))/3600000*s.hourly_cents);
@@ -298,19 +299,19 @@ async function loadEateryRequests(){
     const title=document.createElement('strong');title.textContent=s.title+' · '+r.status;
     const summary=document.createElement('p');summary.textContent='Scheduled worker payout estimate '+(estimated/100).toLocaleString('en-US',{style:'currency',currency:'USD'})+'. Monthly posting plan billed separately.';
     article.append(title,summary);
-    const portfolio=document.createElement('button');portfolio.type='button';portfolio.className='secondary';portfolio.textContent='Worker portfolio';portfolio.addEventListener('click',()=>openWorkerPortfolio(r.worker_id));article.append(portfolio);
+    const portfolio=document.createElement('button');portfolio.type='button';portfolio.className='secondary';portfolio.textContent=text('Worker portfolio');portfolio.addEventListener('click',()=>openWorkerPortfolio(r.worker_id));article.append(portfolio);
     if(r.status==='accepted'){
-      const complete=document.createElement('button');complete.type='button';complete.className='secondary';complete.textContent='Confirm worked shift';complete.disabled=new Date(s.ends_at)>new Date();
+      const complete=document.createElement('button');complete.type='button';complete.className='secondary';complete.textContent=text('Confirm worked shift');complete.disabled=new Date(s.ends_at)>new Date();
       const note=document.createElement('p');note.className='small';note.textContent=complete.disabled?'Confirm work after the scheduled end.':'Confirm only if this worker completed the shift. This adds it to their portfolio; payment is separate.';
       complete.addEventListener('click',async()=>{complete.disabled=true;const {error}=await db.rpc('confirm_worked_shift',{p_request_id:r.id});if(error){note.textContent=error.message;complete.disabled=false;return;}await loadEateryRequests();status('Worked shift added to the worker’s portfolio. You can now grade it.');});article.append(note,complete);
     }
     if(r.status==='completed'){
       const {data:review,error}=await db.from('worker_portfolio').select('good,will_hire_again').eq('request_id',r.id).maybeSingle();
-      if(!error&&review){const form=document.createElement('form');const good=document.createElement('input');good.type='checkbox';good.checked=review.good;const goodLabel=document.createElement('label');goodLabel.className='check-label';goodLabel.append(good,document.createTextNode('Good'));const hire=document.createElement('input');hire.type='checkbox';hire.checked=review.will_hire_again;const hireLabel=document.createElement('label');hireLabel.className='check-label';hireLabel.append(hire,document.createTextNode('Will hire again'));const save=document.createElement('button');save.className='secondary';save.textContent='Save worker grade';const feedback=document.createElement('p');feedback.className='small';feedback.setAttribute('role','status');form.append(goodLabel,hireLabel,save,feedback);form.addEventListener('submit',async ev=>{ev.preventDefault();save.disabled=true;const {data,error}=await db.from('worker_portfolio').update({good:good.checked,will_hire_again:hire.checked}).eq('request_id',r.id).select('request_id');feedback.textContent=error?error.message:data?.length?'Worker grade saved.':'Unable to save this grade.';save.disabled=false;});article.append(form);}
+      if(!error&&review){const form=document.createElement('form');const good=document.createElement('input');good.type='checkbox';good.checked=review.good;const goodLabel=document.createElement('label');goodLabel.className='check-label';goodLabel.append(good,document.createTextNode(text('Good')));const hire=document.createElement('input');hire.type='checkbox';hire.checked=review.will_hire_again;const hireLabel=document.createElement('label');hireLabel.className='check-label';hireLabel.append(hire,document.createTextNode(text('Will hire again')));const save=document.createElement('button');save.className='secondary';save.textContent='Save worker grade';const feedback=document.createElement('p');feedback.className='small';feedback.setAttribute('role','status');form.append(goodLabel,hireLabel,save,feedback);form.addEventListener('submit',async ev=>{ev.preventDefault();save.disabled=true;const {data,error}=await db.from('worker_portfolio').update({good:good.checked,will_hire_again:hire.checked}).eq('request_id',r.id).select('request_id');feedback.textContent=error?error.message:data?.length?'Worker grade saved.':'Unable to save this grade.';save.disabled=false;});article.append(form);}
     }
 
     if(r.status==='requested'&&new Date(s.starts_at)>new Date()){
-      const button=document.createElement('button');button.className='secondary';button.textContent='Confirm worker';
+      const button=document.createElement('button');button.className='secondary';button.textContent=text('Confirm worker');
       button.addEventListener('click',async()=>{button.disabled=true;const {error}=await db.rpc('accept_shift_request',{p_request_id:r.id});if(error){button.disabled=false;return errorMessage(error);}status('Worker confirmed. Worker pay is separate from your monthly posting plan.');await loadEateryRequests();await loadShifts();});
       article.append(button);
     }
@@ -324,7 +325,7 @@ const linkedZip=new URLSearchParams(window.location.search).get('zip');if(/^[0-9
 if(configured){
   db.auth.onAuthStateChange(event=>{setTimeout(async()=>{
     await refreshSession();
-    if(event==='PASSWORD_RECOVERY'){recoveringPassword=true;show('account');$('password-recovery').classList.remove('hidden');$('auth-form').classList.add('hidden');$('forgot-password').classList.add('hidden');$('auth-feedback').textContent='Choose a new password below.';}
+    if(event==='PASSWORD_RECOVERY'){recoveringPassword=true;show('account');$('password-recovery').classList.remove('hidden');$('auth-form').classList.add('hidden');$('forgot-password').classList.add('hidden');$('auth-feedback').textContent=text('Choose a new password below.');}
   },0);});
   refreshSession();loadCharities();loadShifts();
 }
