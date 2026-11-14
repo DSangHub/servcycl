@@ -1,5 +1,10 @@
 (() => {
   const spanish = new Map(Object.entries({
+  "CISTYR · Holiday shifts": "CISTYR · Turnos para las fiestas",
+  "Earn extra cash for the holidays.": "Gana dinero extra para las fiestas.",
+  "Workers: Sign up to find shifts that fit your schedule.": "Trabajadores: inscríbanse para encontrar turnos que se ajusten a su horario.",
+  "Businesses: Be ready when someone calls in sick. Sign up and post a shift when you need a quick fill-in.": "Negocios: prepárense para cuando alguien se ausente por enfermedad. Inscríbanse y publiquen un turno cuando necesiten un reemplazo rápido.",
+  "Sign up at CISTYR": "Inscríbete en CISTYR",
   "ServCycl — Local eatery shifts": "ServCycl — Turnos en restaurantes locales",
   "Sections": "Secciones",
   "Find shifts": "Buscar turnos",
