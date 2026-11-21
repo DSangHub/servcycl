@@ -1,5 +1,6 @@
 (() => {
   const spanish = new Map(Object.entries({
+  "Advertisement": "Publicidad",
   "CISTYR · Holiday shifts": "CISTYR · Turnos para las fiestas",
   "Earn extra cash for the holidays.": "Gana dinero extra para las fiestas.",
   "Workers: Sign up to find shifts that fit your schedule.": "Trabajadores: inscríbanse para encontrar turnos que se ajusten a su horario.",
